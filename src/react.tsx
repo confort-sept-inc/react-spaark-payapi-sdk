@@ -1,6 +1,30 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import {
+  Settings,
+  PlayCircle,
+  Wallet,
+  Smartphone,
+  RefreshCw,
+  Loader2,
+  Copy,
+  CheckCircle2,
+  XCircle,
+  FlaskConical,
+  Wrench,
+  BarChart3,
+  Search,
+  Wifi,
+  Key,
+  Zap,
+  Shield,
+  Code,
+  LayoutDashboard,
+  Beaker,
+  Globe,
+  Lock,
+} from 'lucide-react';
 import type { Correspondent } from './constants/correspondents';
 import type { DepositResponse, PayoutResponse } from './types/transactions';
 import type { WebhookEventType } from './types/webhooks';
@@ -17,8 +41,11 @@ export {
   type TransactionStatus,
 } from './components/SpaarkPaySdkFinanceDashboard';
 
+import { SpaarkPaySdkFinanceDashboard, type Transaction } from './components/SpaarkPaySdkFinanceDashboard';
+
 type OperationStatus = 'idle' | 'loading' | 'success' | 'error';
 type TabType = 'deposit' | 'payout' | 'status' | 'toolkit' | 'finances' | 'webhooks';
+type DashboardMode = 'demo' | 'demo-expert' | 'sandbox' | 'production';
 
 interface TestResult {
   id: string;
@@ -49,6 +76,38 @@ export interface SpaarkPaySdkTestDashboardProps {
   onPayoutComplete?: (response: PayoutResponse) => void;
   onError?: (error: Error) => void;
 }
+
+// Generate mock transactions for demo mode
+const generateMockTransactions = (): Transaction[] => {
+  const types: Array<'deposit' | 'payout' | 'refund'> = ['deposit', 'payout', 'refund'];
+  const statuses: Array<'COMPLETED' | 'PENDING' | 'FAILED' | 'PROCESSING'> = ['COMPLETED', 'COMPLETED', 'COMPLETED', 'PENDING', 'FAILED', 'PROCESSING'];
+  const providers: Correspondent[] = ['MTN_MOMO_CMR', 'ORANGE_CMR', 'MTN_MOMO_COG', 'AIRTEL_COG'];
+
+  const transactions: Transaction[] = [];
+  const now = Date.now();
+
+  for (let i = 0; i < 25; i++) {
+    const type = types[Math.floor(Math.random() * types.length)]!;
+    const status = statuses[Math.floor(Math.random() * statuses.length)]!;
+    const provider = providers[Math.floor(Math.random() * providers.length)]!
+    const amount = Math.floor(Math.random() * 50000) + 1000;
+    const daysAgo = Math.floor(Math.random() * 30);
+
+    transactions.push({
+      id: `tx-${String(i + 1).padStart(3, '0')}-${Math.random().toString(36).slice(2, 8)}`,
+      type,
+      amount,
+      currency: 'XAF',
+      status,
+      provider,
+      phoneNumber: `237${6 + Math.floor(Math.random() * 3)}${Math.floor(Math.random() * 100000000).toString().padStart(8, '0')}`,
+      createdAt: new Date(now - daysAgo * 24 * 60 * 60 * 1000 - Math.random() * 24 * 60 * 60 * 1000).toISOString(),
+      ...(status === 'FAILED' && { failureReason: 'INSUFFICIENT_FUNDS' }),
+    });
+  }
+
+  return transactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+};
 
 // Mock response generators for demo mode (V2 API format)
 const createMockDepositResponse = (txId: string): DepositResponse => ({
@@ -202,6 +261,33 @@ const CURRENCY_OPTIONS = [
   { value: 'ZMW', label: 'ZMW (Zambian Kwacha)' },
 ];
 
+const MODE_CONFIG: Record<DashboardMode, { label: string; description: string; color: string; bgColor: string }> = {
+  'demo': {
+    label: 'DEMO',
+    description: 'Données fictives - Visualisez le dashboard',
+    color: 'text-purple-800 dark:text-purple-200',
+    bgColor: 'bg-purple-100 dark:bg-purple-900',
+  },
+  'demo-expert': {
+    label: 'EXPERT',
+    description: 'Console de test API - Réponses simulées',
+    color: 'text-amber-800 dark:text-amber-200',
+    bgColor: 'bg-amber-100 dark:bg-amber-900',
+  },
+  'sandbox': {
+    label: 'SANDBOX',
+    description: 'Environnement de test Pawapay',
+    color: 'text-blue-800 dark:text-blue-200',
+    bgColor: 'bg-blue-100 dark:bg-blue-900',
+  },
+  'production': {
+    label: 'PRODUCTION',
+    description: 'Environnement de production - Transactions réelles',
+    color: 'text-green-800 dark:text-green-200',
+    bgColor: 'bg-green-100 dark:bg-green-900',
+  },
+};
+
 export function SpaarkPaySdkTestDashboard({
   apiKey: initialApiKey = '',
   environment: initialEnvironment = 'sandbox',
@@ -213,9 +299,11 @@ export function SpaarkPaySdkTestDashboard({
   onError,
 }: SpaarkPaySdkTestDashboardProps) {
   const [apiKey, setApiKey] = useState(initialApiKey);
-  const [environment, setEnvironment] = useState<'sandbox' | 'production'>(initialEnvironment);
-  const [isConfigured, setIsConfigured] = useState(!!initialApiKey || initialDemoMode);
-  const [isDemoMode, setIsDemoMode] = useState(initialDemoMode);
+  const [mode, setMode] = useState<DashboardMode | null>(
+    initialDemoMode ? 'demo' : initialApiKey ? initialEnvironment : null
+  );
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabType>('deposit');
   const [phoneNumber, setPhoneNumber] = useState('237670000000');
@@ -246,6 +334,17 @@ export function SpaarkPaySdkTestDashboard({
   const [parseError, setParseError] = useState<string>('');
   const [eventLogFilter, setEventLogFilter] = useState<'all' | 'deposit' | 'payout' | 'refund'>('all');
 
+  // Load mock data for demo mode
+  useEffect(() => {
+    if (mode === 'demo') {
+      setIsLoadingTransactions(true);
+      setTimeout(() => {
+        setTransactions(generateMockTransactions());
+        setIsLoadingTransactions(false);
+      }, 800);
+    }
+  }, [mode]);
+
   const addResult = useCallback((operation: string, status: OperationStatus, response?: unknown, error?: string) => {
     const result: TestResult = {
       id: generateUUID(),
@@ -258,24 +357,24 @@ export function SpaarkPaySdkTestDashboard({
     setResults((prev) => [result, ...prev].slice(0, 20));
   }, []);
 
-  const handleConfigure = useCallback(() => {
-    if (!apiKey.trim()) {
-      addResult('Configuration', 'error', undefined, 'API Key is required');
-      return;
+  const handleSelectMode = useCallback((selectedMode: DashboardMode) => {
+    if (selectedMode === 'sandbox' || selectedMode === 'production') {
+      if (!apiKey.trim()) {
+        return;
+      }
     }
-    setIsConfigured(true);
-    setIsDemoMode(false);
-    addResult('Configuration', 'success', { environment, configured: true, apiBasePath });
-  }, [apiKey, environment, apiBasePath, addResult]);
-
-  const handleDemoMode = useCallback(() => {
-    setIsDemoMode(true);
-    setIsConfigured(true);
-    addResult('Configuration', 'success', { mode: 'demo', message: 'Demo mode activated - responses are simulated' });
-  }, [addResult]);
+    setMode(selectedMode);
+    if (selectedMode === 'demo') {
+      addResult('Configuration', 'success', { mode: 'demo', message: 'Mode démo activé - données fictives' });
+    } else if (selectedMode === 'demo-expert') {
+      addResult('Configuration', 'success', { mode: 'demo-expert', message: 'Mode expert activé - réponses simulées' });
+    } else {
+      addResult('Configuration', 'success', { mode: selectedMode, apiBasePath });
+    }
+  }, [apiKey, apiBasePath, addResult]);
 
   const handleDeposit = useCallback(async () => {
-    if (!apiKey && !isDemoMode) return;
+    if (mode !== 'demo-expert' && mode !== 'sandbox' && mode !== 'production') return;
     setCurrentStatus('loading');
 
     try {
@@ -284,7 +383,7 @@ export function SpaarkPaySdkTestDashboard({
 
       let response: DepositResponse;
 
-      if (isDemoMode) {
+      if (mode === 'demo-expert') {
         await simulateDelay();
         response = createMockDepositResponse(txId);
       } else {
@@ -293,7 +392,7 @@ export function SpaarkPaySdkTestDashboard({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             apiKey,
-            environment,
+            environment: mode,
             amount: parseFloat(amount),
             currency,
             provider,
@@ -317,10 +416,10 @@ export function SpaarkPaySdkTestDashboard({
       addResult('Deposit', 'error', undefined, message);
       onError?.(err instanceof Error ? err : new Error(message));
     }
-  }, [apiKey, apiBasePath, environment, isDemoMode, amount, currency, provider, phoneNumber, description, addResult, onDepositComplete, onError]);
+  }, [apiKey, apiBasePath, mode, amount, currency, provider, phoneNumber, description, addResult, onDepositComplete, onError]);
 
   const handlePayout = useCallback(async () => {
-    if (!apiKey && !isDemoMode) return;
+    if (mode !== 'demo-expert' && mode !== 'sandbox' && mode !== 'production') return;
     setCurrentStatus('loading');
 
     try {
@@ -329,7 +428,7 @@ export function SpaarkPaySdkTestDashboard({
 
       let response: PayoutResponse;
 
-      if (isDemoMode) {
+      if (mode === 'demo-expert') {
         await simulateDelay();
         response = createMockPayoutResponse(txId);
       } else {
@@ -338,7 +437,7 @@ export function SpaarkPaySdkTestDashboard({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             apiKey,
-            environment,
+            environment: mode,
             amount: parseFloat(amount),
             currency,
             provider,
@@ -361,10 +460,10 @@ export function SpaarkPaySdkTestDashboard({
       addResult('Payout', 'error', undefined, message);
       onError?.(err instanceof Error ? err : new Error(message));
     }
-  }, [apiKey, apiBasePath, environment, isDemoMode, amount, currency, provider, phoneNumber, addResult, onPayoutComplete, onError]);
+  }, [apiKey, apiBasePath, mode, amount, currency, provider, phoneNumber, addResult, onPayoutComplete, onError]);
 
   const handleCheckStatus = useCallback(async () => {
-    if ((!apiKey && !isDemoMode) || !transactionId) {
+    if ((mode !== 'demo-expert' && mode !== 'sandbox' && mode !== 'production') || !transactionId) {
       addResult('Check Status', 'error', undefined, 'No transaction ID');
       return;
     }
@@ -373,14 +472,14 @@ export function SpaarkPaySdkTestDashboard({
     try {
       let response;
 
-      if (isDemoMode) {
+      if (mode === 'demo-expert') {
         await simulateDelay();
         response = createMockStatusResponse(transactionId);
       } else {
         const res = await fetch(`${apiBasePath}/status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, environment, transactionId }),
+          body: JSON.stringify({ apiKey, environment: mode, transactionId }),
         });
 
         const data = await res.json();
@@ -396,23 +495,23 @@ export function SpaarkPaySdkTestDashboard({
       addResult('Check Status', 'error', undefined, message);
       onError?.(err instanceof Error ? err : new Error(message));
     }
-  }, [apiKey, apiBasePath, environment, isDemoMode, transactionId, addResult, onError]);
+  }, [apiKey, apiBasePath, mode, transactionId, addResult, onError]);
 
   const handleGetAvailability = useCallback(async () => {
-    if (!apiKey && !isDemoMode) return;
+    if (mode !== 'demo-expert' && mode !== 'sandbox' && mode !== 'production') return;
     setCurrentStatus('loading');
 
     try {
       let response;
 
-      if (isDemoMode) {
+      if (mode === 'demo-expert') {
         await simulateDelay();
         response = createMockAvailabilityResponse();
       } else {
         const res = await fetch(`${apiBasePath}/availability`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, environment }),
+          body: JSON.stringify({ apiKey, environment: mode }),
         });
 
         const data = await res.json();
@@ -428,23 +527,23 @@ export function SpaarkPaySdkTestDashboard({
       addResult('Provider Availability', 'error', undefined, message);
       onError?.(err instanceof Error ? err : new Error(message));
     }
-  }, [apiKey, apiBasePath, environment, isDemoMode, addResult, onError]);
+  }, [apiKey, apiBasePath, mode, addResult, onError]);
 
   const handlePredictProvider = useCallback(async () => {
-    if (!apiKey && !isDemoMode) return;
+    if (mode !== 'demo-expert' && mode !== 'sandbox' && mode !== 'production') return;
     setCurrentStatus('loading');
 
     try {
       let response;
 
-      if (isDemoMode) {
+      if (mode === 'demo-expert') {
         await simulateDelay();
         response = createMockPredictResponse(phoneNumber);
       } else {
         const res = await fetch(`${apiBasePath}/predict-provider`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, environment, phoneNumber }),
+          body: JSON.stringify({ apiKey, environment: mode, phoneNumber }),
         });
 
         const data = await res.json();
@@ -460,23 +559,23 @@ export function SpaarkPaySdkTestDashboard({
       addResult('Predict Provider', 'error', undefined, message);
       onError?.(err instanceof Error ? err : new Error(message));
     }
-  }, [apiKey, apiBasePath, environment, isDemoMode, phoneNumber, addResult, onError]);
+  }, [apiKey, apiBasePath, mode, phoneNumber, addResult, onError]);
 
   const handleGetActiveConfig = useCallback(async () => {
-    if (!apiKey && !isDemoMode) return;
+    if (mode !== 'demo-expert' && mode !== 'sandbox' && mode !== 'production') return;
     setCurrentStatus('loading');
 
     try {
       let response;
 
-      if (isDemoMode) {
+      if (mode === 'demo-expert') {
         await simulateDelay();
         response = createMockActiveConfigResponse();
       } else {
         const res = await fetch(`${apiBasePath}/active-config`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, environment }),
+          body: JSON.stringify({ apiKey, environment: mode }),
         });
 
         const data = await res.json();
@@ -492,23 +591,23 @@ export function SpaarkPaySdkTestDashboard({
       addResult('Active Configuration', 'error', undefined, message);
       onError?.(err instanceof Error ? err : new Error(message));
     }
-  }, [apiKey, apiBasePath, environment, isDemoMode, addResult, onError]);
+  }, [apiKey, apiBasePath, mode, addResult, onError]);
 
   const handleGetPublicKeys = useCallback(async () => {
-    if (!apiKey && !isDemoMode) return;
+    if (mode !== 'demo-expert' && mode !== 'sandbox' && mode !== 'production') return;
     setCurrentStatus('loading');
 
     try {
       let response;
 
-      if (isDemoMode) {
+      if (mode === 'demo-expert') {
         await simulateDelay();
         response = createMockPublicKeysResponse();
       } else {
         const res = await fetch(`${apiBasePath}/public-keys`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, environment }),
+          body: JSON.stringify({ apiKey, environment: mode }),
         });
 
         const data = await res.json();
@@ -524,23 +623,23 @@ export function SpaarkPaySdkTestDashboard({
       addResult('Public Keys', 'error', undefined, message);
       onError?.(err instanceof Error ? err : new Error(message));
     }
-  }, [apiKey, apiBasePath, environment, isDemoMode, addResult, onError]);
+  }, [apiKey, apiBasePath, mode, addResult, onError]);
 
   const handleGetWalletBalances = useCallback(async () => {
-    if (!apiKey && !isDemoMode) return;
+    if (mode !== 'demo-expert' && mode !== 'sandbox' && mode !== 'production') return;
     setCurrentStatus('loading');
 
     try {
       let response;
 
-      if (isDemoMode) {
+      if (mode === 'demo-expert') {
         await simulateDelay();
         response = createMockWalletBalancesResponse();
       } else {
         const res = await fetch(`${apiBasePath}/wallet-balances`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, environment }),
+          body: JSON.stringify({ apiKey, environment: mode }),
         });
 
         const data = await res.json();
@@ -556,207 +655,308 @@ export function SpaarkPaySdkTestDashboard({
       addResult('Wallet Balances', 'error', undefined, message);
       onError?.(err instanceof Error ? err : new Error(message));
     }
-  }, [apiKey, apiBasePath, environment, isDemoMode, addResult, onError]);
+  }, [apiKey, apiBasePath, mode, addResult, onError]);
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
   }, []);
 
-  if (!isConfigured) {
+  // Mode selection screen
+  if (!mode) {
     return (
       <div className={`space-y-8 ${className}`}>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Spaark Pay Console</h1>
           <p className="text-muted-foreground mt-1">
-            Configurez vos identifiants PawaPay pour commencer
+            Choisissez un mode pour commencer
           </p>
         </div>
 
-        <div className="border border-border bg-background p-6 max-w-md space-y-6">
+        {/* API Key input for sandbox/production */}
+        <div className="border border-border bg-background p-6 max-w-2xl space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-muted flex items-center justify-center">
-              <SettingsIcon />
+            <div className="w-10 h-10 bg-muted flex items-center justify-center rounded-md">
+              <Key className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-semibold">SDK Configuration</h2>
-              <p className="text-xs text-muted-foreground">Enter your API credentials</p>
+              <h2 className="font-semibold">Configuration API</h2>
+              <p className="text-xs text-muted-foreground">Requis pour les modes Sandbox et Production</p>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium">API Key</label>
-              <input
-                type="password"
-                placeholder="pk_sandbox_..."
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
-              />
-            </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium">API Key</label>
+            <input
+              type="password"
+              placeholder="pk_sandbox_..."
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              className="w-full h-10 px-3 text-sm border border-input bg-transparent rounded-md outline-none focus:border-ring"
+            />
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-medium">Environnement</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEnvironment('sandbox')}
-                  className={`h-8 px-3 text-xs font-medium border transition-colors flex items-center gap-1.5 ${
-                    environment === 'sandbox'
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-background border-border hover:bg-muted'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${environment === 'sandbox' ? 'bg-blue-200' : 'bg-blue-500'}`} />
-                  Sandbox
-                </button>
-                <button
-                  onClick={() => setEnvironment('production')}
-                  className={`h-8 px-3 text-xs font-medium border transition-colors flex items-center gap-1.5 ${
-                    environment === 'production'
-                      ? 'bg-green-600 text-white border-green-600'
-                      : 'bg-background border-border hover:bg-muted'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${environment === 'production' ? 'bg-green-200' : 'bg-green-500'}`} />
-                  Production
-                </button>
+        {/* Mode selection */}
+        <div className="grid sm:grid-cols-2 gap-4 max-w-2xl">
+          {/* Demo Mode */}
+          <button
+            onClick={() => handleSelectMode('demo')}
+            className="p-6 border border-border bg-background hover:bg-muted/50 transition-colors text-left space-y-3 rounded-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 flex items-center justify-center rounded-md">
+                <LayoutDashboard className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                {environment === 'sandbox'
-                  ? 'Utilisez le sandbox pour tester sans frais réels'
-                  : 'Attention : les transactions en production sont réelles'
-                }
+              <div>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded ${MODE_CONFIG['demo'].bgColor} ${MODE_CONFIG['demo'].color}`}>
+                  DEMO
+                </span>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold">Mode Démonstration</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Visualisez le dashboard financier avec des données fictives. Idéal pour découvrir l'interface.
               </p>
             </div>
+          </button>
 
-            <button
-              onClick={handleConfigure}
-              className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-            >
-              <PlayIcon />
-              Initialize SDK
-            </button>
-
-            <div className="relative flex items-center py-2">
-              <div className="flex-grow border-t border-border"></div>
-              <span className="flex-shrink mx-3 text-xs text-muted-foreground">ou</span>
-              <div className="flex-grow border-t border-border"></div>
+          {/* Demo Expert Mode */}
+          <button
+            onClick={() => handleSelectMode('demo-expert')}
+            className="p-6 border border-border bg-background hover:bg-muted/50 transition-colors text-left space-y-3 rounded-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900 flex items-center justify-center rounded-md">
+                <FlaskConical className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded ${MODE_CONFIG['demo-expert'].bgColor} ${MODE_CONFIG['demo-expert'].color}`}>
+                  EXPERT
+                </span>
+              </div>
             </div>
+            <div>
+              <h3 className="font-semibold">Mode Expert (Test API)</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Console de test avec réponses simulées. Testez les endpoints sans clé API.
+              </p>
+            </div>
+          </button>
 
-            <button
-              onClick={handleDemoMode}
-              className="w-full h-8 px-3 text-xs font-medium border border-border bg-background hover:bg-muted transition-colors flex items-center justify-center gap-2"
-            >
-              <BeakerIcon />
-              Mode Démo (sans API key)
-            </button>
-          </div>
+          {/* Sandbox Mode */}
+          <button
+            onClick={() => handleSelectMode('sandbox')}
+            disabled={!apiKey.trim()}
+            className="p-6 border border-border bg-background hover:bg-muted/50 transition-colors text-left space-y-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 flex items-center justify-center rounded-md">
+                <Beaker className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded ${MODE_CONFIG['sandbox'].bgColor} ${MODE_CONFIG['sandbox'].color}`}>
+                  SANDBOX
+                </span>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold">Mode Sandbox</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Connecté à l'API Pawapay Sandbox. Transactions de test réelles.
+                {!apiKey.trim() && <span className="block text-amber-600 mt-1">Entrez une clé API ci-dessus</span>}
+              </p>
+            </div>
+          </button>
+
+          {/* Production Mode */}
+          <button
+            onClick={() => handleSelectMode('production')}
+            disabled={!apiKey.trim()}
+            className="p-6 border border-border bg-background hover:bg-muted/50 transition-colors text-left space-y-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-100 dark:bg-green-900 flex items-center justify-center rounded-md">
+                <Globe className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 text-xs font-medium rounded ${MODE_CONFIG['production'].bgColor} ${MODE_CONFIG['production'].color}`}>
+                  PRODUCTION
+                </span>
+                <Lock className="w-3 h-3 text-muted-foreground" />
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold">Mode Production</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Environnement de production. Transactions réelles avec argent réel.
+                {!apiKey.trim() && <span className="block text-amber-600 mt-1">Entrez une clé API ci-dessus</span>}
+              </p>
+            </div>
+          </button>
         </div>
       </div>
     );
   }
 
+  // Demo mode - Show Finance Dashboard with mock data
+  if (mode === 'demo') {
+    return (
+      <div className={`space-y-6 ${className}`}>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <span className={`px-2 py-0.5 text-xs font-medium rounded ${MODE_CONFIG[mode].bgColor} ${MODE_CONFIG[mode].color}`}>
+              {MODE_CONFIG[mode].label}
+            </span>
+            <span className="text-sm text-muted-foreground">{MODE_CONFIG[mode].description}</span>
+          </div>
+          <button
+            onClick={() => setMode(null)}
+            className="h-8 px-3 text-xs font-medium border border-border bg-background hover:bg-muted transition-colors flex items-center gap-2 rounded-md"
+          >
+            <Settings className="w-4 h-4" />
+            Changer de mode
+          </button>
+        </div>
+
+        <SpaarkPaySdkFinanceDashboard
+          transactions={transactions}
+          locale="fr"
+          isLoading={isLoadingTransactions}
+          onRefresh={() => {
+            setIsLoadingTransactions(true);
+            setTimeout(() => {
+              setTransactions(generateMockTransactions());
+              setIsLoadingTransactions(false);
+            }, 800);
+          }}
+          showExpertMode={true}
+          onExpertModeClick={() => setMode('demo-expert')}
+        />
+      </div>
+    );
+  }
+
+  // Sandbox/Production mode - Show Finance Dashboard with real data
+  if (mode === 'sandbox' || mode === 'production') {
+    return (
+      <div className={`space-y-6 ${className}`}>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <span className={`px-2 py-0.5 text-xs font-medium rounded ${MODE_CONFIG[mode].bgColor} ${MODE_CONFIG[mode].color}`}>
+              {MODE_CONFIG[mode].label}
+            </span>
+            <span className="text-sm text-muted-foreground">{MODE_CONFIG[mode].description}</span>
+          </div>
+          <button
+            onClick={() => setMode(null)}
+            className="h-8 px-3 text-xs font-medium border border-border bg-background hover:bg-muted transition-colors flex items-center gap-2 rounded-md"
+          >
+            <Settings className="w-4 h-4" />
+            Changer de mode
+          </button>
+        </div>
+
+        <SpaarkPaySdkFinanceDashboard
+          transactions={transactions}
+          locale="fr"
+          isLoading={isLoadingTransactions}
+          onRefresh={() => {
+            // TODO: Implement real API call to fetch transactions
+            addResult('Refresh', 'success', { message: 'Transactions refreshed' });
+          }}
+          showExpertMode={true}
+          onExpertModeClick={() => setMode('demo-expert')}
+        />
+      </div>
+    );
+  }
+
+  // Demo Expert mode - Show Test Dashboard
   return (
     <div className={`space-y-6 ${className}`}>
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">Spaark Pay Console</h1>
-            {isDemoMode ? (
-              <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                DEMO
-              </span>
-            ) : environment === 'production' ? (
-              <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                PRODUCTION
-              </span>
-            ) : (
-              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                SANDBOX
-              </span>
-            )}
+            <span className={`px-2 py-0.5 text-xs font-medium rounded ${MODE_CONFIG[mode].bgColor} ${MODE_CONFIG[mode].color}`}>
+              {MODE_CONFIG[mode].label}
+            </span>
           </div>
-          <p className="text-muted-foreground mt-1">
-            {isDemoMode
-              ? 'Mode démo - Les réponses sont simulées'
-              : environment === 'production'
-                ? 'Mode production - Transactions réelles'
-                : 'Mode sandbox - Environnement de test'
-            }
-          </p>
+          <p className="text-muted-foreground mt-1">{MODE_CONFIG[mode].description}</p>
         </div>
         <button
-          onClick={() => setIsConfigured(false)}
-          className="h-8 px-3 text-xs font-medium border border-border bg-background hover:bg-muted transition-colors flex items-center gap-2"
+          onClick={() => setMode(null)}
+          className="h-8 px-3 text-xs font-medium border border-border bg-background hover:bg-muted transition-colors flex items-center gap-2 rounded-md"
         >
-          <SettingsIcon />
-          Reconfigure
+          <Settings className="w-4 h-4" />
+          Changer de mode
         </button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Tabs */}
-          <div className="flex flex-wrap gap-1 bg-muted p-1">
+          <div className="flex flex-wrap gap-1 bg-muted p-1 rounded-md">
             <button
               onClick={() => setActiveTab('deposit')}
-              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                activeTab === 'deposit' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 rounded-sm ${
+                activeTab === 'deposit' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <WalletIcon />
+              <Wallet className="w-4 h-4" />
               Deposit
             </button>
             <button
               onClick={() => setActiveTab('payout')}
-              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                activeTab === 'payout' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 rounded-sm ${
+                activeTab === 'payout' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <PhoneIcon />
+              <Smartphone className="w-4 h-4" />
               Payout
             </button>
             <button
               onClick={() => setActiveTab('status')}
-              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                activeTab === 'status' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 rounded-sm ${
+                activeTab === 'status' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <RefreshIcon />
+              <RefreshCw className="w-4 h-4" />
               Status
             </button>
             <button
               onClick={() => setActiveTab('toolkit')}
-              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                activeTab === 'toolkit' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 rounded-sm ${
+                activeTab === 'toolkit' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <ToolkitIcon />
+              <Wrench className="w-4 h-4" />
               Toolkit
             </button>
             <button
               onClick={() => setActiveTab('finances')}
-              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                activeTab === 'finances' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 rounded-sm ${
+                activeTab === 'finances' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <ChartIcon />
+              <BarChart3 className="w-4 h-4" />
               Finances
             </button>
             <button
               onClick={() => setActiveTab('webhooks')}
-              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
-                activeTab === 'webhooks' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 rounded-sm ${
+                activeTab === 'webhooks' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <WebhookIcon />
+              <Zap className="w-4 h-4" />
               Webhooks
             </button>
           </div>
 
           {/* Deposit Tab */}
           {activeTab === 'deposit' && (
-            <div className="border border-border bg-background p-6 space-y-4">
+            <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
               <div>
                 <h3 className="font-semibold">Initiate Deposit</h3>
                 <p className="text-xs text-muted-foreground">Collect payment from a Mobile Money user</p>
@@ -769,7 +969,7 @@ export function SpaarkPaySdkTestDashboard({
                     placeholder="237670000000"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   />
                 </div>
                 <div className="space-y-2">
@@ -779,7 +979,7 @@ export function SpaarkPaySdkTestDashboard({
                     placeholder="5000"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   />
                 </div>
                 <div className="space-y-2">
@@ -787,7 +987,7 @@ export function SpaarkPaySdkTestDashboard({
                   <select
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   >
                     {CURRENCY_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>{c.label}</option>
@@ -799,7 +999,7 @@ export function SpaarkPaySdkTestDashboard({
                   <select
                     value={provider}
                     onChange={(e) => setProvider(e.target.value as Correspondent)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   >
                     {PROVIDER_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>{c.label} ({c.country})</option>
@@ -813,7 +1013,7 @@ export function SpaarkPaySdkTestDashboard({
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     maxLength={22}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   />
                 </div>
               </div>
@@ -821,9 +1021,9 @@ export function SpaarkPaySdkTestDashboard({
               <button
                 onClick={handleDeposit}
                 disabled={currentStatus === 'loading'}
-                className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 rounded-md"
               >
-                {currentStatus === 'loading' ? <LoaderIcon /> : <PlayIcon />}
+                {currentStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                 Execute Deposit
               </button>
             </div>
@@ -831,7 +1031,7 @@ export function SpaarkPaySdkTestDashboard({
 
           {/* Payout Tab */}
           {activeTab === 'payout' && (
-            <div className="border border-border bg-background p-6 space-y-4">
+            <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
               <div>
                 <h3 className="font-semibold">Initiate Payout</h3>
                 <p className="text-xs text-muted-foreground">Send money to a Mobile Money account</p>
@@ -844,7 +1044,7 @@ export function SpaarkPaySdkTestDashboard({
                     placeholder="237670000000"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   />
                 </div>
                 <div className="space-y-2">
@@ -854,7 +1054,7 @@ export function SpaarkPaySdkTestDashboard({
                     placeholder="5000"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   />
                 </div>
                 <div className="space-y-2">
@@ -862,7 +1062,7 @@ export function SpaarkPaySdkTestDashboard({
                   <select
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   >
                     {CURRENCY_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>{c.label}</option>
@@ -874,7 +1074,7 @@ export function SpaarkPaySdkTestDashboard({
                   <select
                     value={provider}
                     onChange={(e) => setProvider(e.target.value as Correspondent)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   >
                     {PROVIDER_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>{c.label} ({c.country})</option>
@@ -886,9 +1086,9 @@ export function SpaarkPaySdkTestDashboard({
               <button
                 onClick={handlePayout}
                 disabled={currentStatus === 'loading'}
-                className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 rounded-md"
               >
-                {currentStatus === 'loading' ? <LoaderIcon /> : <PlayIcon />}
+                {currentStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                 Execute Payout
               </button>
             </div>
@@ -896,7 +1096,7 @@ export function SpaarkPaySdkTestDashboard({
 
           {/* Status Tab */}
           {activeTab === 'status' && (
-            <div className="border border-border bg-background p-6 space-y-4">
+            <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
               <div>
                 <h3 className="font-semibold">Check Transaction Status</h3>
                 <p className="text-xs text-muted-foreground">Query the status of a transaction</p>
@@ -910,15 +1110,15 @@ export function SpaarkPaySdkTestDashboard({
                       placeholder="Enter transaction ID (UUID)"
                       value={transactionId}
                       onChange={(e) => setTransactionId(e.target.value)}
-                      className="flex-1 h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring font-mono"
+                      className="flex-1 h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring font-mono"
                     />
                     {transactionId && (
                       <button
                         onClick={() => copyToClipboard(transactionId)}
-                        className="w-8 h-8 border border-border bg-background hover:bg-muted transition-colors flex items-center justify-center"
+                        className="w-8 h-8 border border-border bg-background hover:bg-muted transition-colors flex items-center justify-center rounded-md"
                         title="Copy to clipboard"
                       >
-                        <CopyIcon />
+                        <Copy className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -927,9 +1127,9 @@ export function SpaarkPaySdkTestDashboard({
                 <button
                   onClick={handleCheckStatus}
                   disabled={currentStatus === 'loading' || !transactionId}
-                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 rounded-md"
                 >
-                  {currentStatus === 'loading' ? <LoaderIcon /> : <RefreshIcon />}
+                  {currentStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                   Check Status
                 </button>
               </div>
@@ -939,7 +1139,7 @@ export function SpaarkPaySdkTestDashboard({
           {/* Toolkit Tab */}
           {activeTab === 'toolkit' && (
             <div className="space-y-4">
-              <div className="border border-border bg-background p-6 space-y-4">
+              <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
                 <div>
                   <h3 className="font-semibold">Predict Provider</h3>
                   <p className="text-xs text-muted-foreground">Predict the provider from a phone number</p>
@@ -951,16 +1151,16 @@ export function SpaarkPaySdkTestDashboard({
                     placeholder="+237 670 000 000"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   />
                 </div>
 
                 <button
                   onClick={handlePredictProvider}
                   disabled={currentStatus === 'loading'}
-                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 rounded-md"
                 >
-                  {currentStatus === 'loading' ? <LoaderIcon /> : <SearchIcon />}
+                  {currentStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                   Predict Provider
                 </button>
               </div>
@@ -969,25 +1169,25 @@ export function SpaarkPaySdkTestDashboard({
                 <button
                   onClick={handleGetAvailability}
                   disabled={currentStatus === 'loading'}
-                  className="h-10 px-3 text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="h-10 px-3 text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors flex items-center justify-center gap-2 rounded-md"
                 >
-                  <SignalIcon />
+                  <Wifi className="w-4 h-4" />
                   Provider Availability
                 </button>
                 <button
                   onClick={handleGetActiveConfig}
                   disabled={currentStatus === 'loading'}
-                  className="h-10 px-3 text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="h-10 px-3 text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors flex items-center justify-center gap-2 rounded-md"
                 >
-                  <SettingsIcon />
+                  <Settings className="w-4 h-4" />
                   Active Config
                 </button>
                 <button
                   onClick={handleGetPublicKeys}
                   disabled={currentStatus === 'loading'}
-                  className="h-10 px-3 text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="h-10 px-3 text-xs font-medium border border-border bg-background hover:bg-muted disabled:opacity-50 transition-colors flex items-center justify-center gap-2 rounded-md"
                 >
-                  <KeyIcon />
+                  <Key className="w-4 h-4" />
                   Public Keys
                 </button>
               </div>
@@ -997,7 +1197,7 @@ export function SpaarkPaySdkTestDashboard({
           {/* Finances Tab */}
           {activeTab === 'finances' && (
             <div className="space-y-4">
-              <div className="border border-border bg-background p-6 space-y-4">
+              <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
                 <div>
                   <h3 className="font-semibold">Wallet Balances</h3>
                   <p className="text-xs text-muted-foreground">View balances for all your wallets</p>
@@ -1006,22 +1206,22 @@ export function SpaarkPaySdkTestDashboard({
                 <button
                   onClick={handleGetWalletBalances}
                   disabled={currentStatus === 'loading'}
-                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 rounded-md"
                 >
-                  {currentStatus === 'loading' ? <LoaderIcon /> : <WalletIcon />}
+                  {currentStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
                   Get Wallet Balances
                 </button>
               </div>
 
-              <div className="border border-border bg-background p-6 space-y-4">
+              <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
                 <div>
                   <h3 className="font-semibold">Statements</h3>
                   <p className="text-xs text-muted-foreground">Generate financial statements for your wallets</p>
                 </div>
 
-                <div className="p-4 bg-muted/50 text-xs text-muted-foreground">
+                <div className="p-4 bg-muted/50 text-xs text-muted-foreground rounded-md">
                   Statement generation requires callback URL configuration. Use the SDK directly:
-                  <pre className="mt-2 p-2 bg-background overflow-x-auto">
+                  <pre className="mt-2 p-2 bg-background overflow-x-auto rounded">
 {`await sdk.finances.generateStatement({
   wallet: { country: 'CMR', currency: 'XAF' },
   callbackUrl: 'https://your-site.com/callback',
@@ -1038,7 +1238,7 @@ export function SpaarkPaySdkTestDashboard({
           {activeTab === 'webhooks' && (
             <div className="space-y-4">
               {/* Webhook Secret Configuration */}
-              <div className="border border-border bg-background p-6 space-y-4">
+              <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
                 <div>
                   <h3 className="font-semibold">Webhook Secret</h3>
                   <p className="text-xs text-muted-foreground">Configure the secret used for signing webhooks</p>
@@ -1050,13 +1250,13 @@ export function SpaarkPaySdkTestDashboard({
                     placeholder="whsec_..."
                     value={webhookSecret}
                     onChange={(e) => setWebhookSecret(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-md outline-none focus:border-ring"
                   />
                 </div>
               </div>
 
               {/* Webhook Simulator */}
-              <div className="border border-border bg-background p-6 space-y-4">
+              <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
                 <div>
                   <h3 className="font-semibold">Webhook Simulator</h3>
                   <p className="text-xs text-muted-foreground">Generate mock webhook events for testing</p>
@@ -1068,7 +1268,7 @@ export function SpaarkPaySdkTestDashboard({
                     <select
                       value={webhookEventType}
                       onChange={(e) => setWebhookEventType(e.target.value as WebhookEventType)}
-                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                     >
                       {WEBHOOK_EVENT_TYPES.map((type) => (
                         <option key={type} value={type}>{type}</option>
@@ -1082,7 +1282,7 @@ export function SpaarkPaySdkTestDashboard({
                       placeholder="5000"
                       value={webhookAmount}
                       onChange={(e) => setWebhookAmount(e.target.value)}
-                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1091,7 +1291,7 @@ export function SpaarkPaySdkTestDashboard({
                       placeholder="237670000000"
                       value={webhookPhone}
                       onChange={(e) => setWebhookPhone(e.target.value)}
-                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1099,7 +1299,7 @@ export function SpaarkPaySdkTestDashboard({
                     <select
                       value={webhookProvider}
                       onChange={(e) => setWebhookProvider(e.target.value as Correspondent)}
-                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                     >
                       {PROVIDER_OPTIONS.map((p) => (
                         <option key={p.value} value={p.value}>{p.label} ({p.country})</option>
@@ -1120,7 +1320,6 @@ export function SpaarkPaySdkTestDashboard({
                     setGeneratedPayload(payload);
                     setGeneratedSignature(signature);
 
-                    // Add to event log
                     const newEvent: WebhookTestEvent = {
                       id: generateUUID(),
                       eventType: webhookEventType,
@@ -1132,9 +1331,9 @@ export function SpaarkPaySdkTestDashboard({
                     setWebhookEvents((prev) => [newEvent, ...prev].slice(0, 50));
                     addResult('Generate Webhook', 'success', { eventType: webhookEventType, eventId: event.eventId });
                   }}
-                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 rounded-md"
                 >
-                  <PlayIcon />
+                  <PlayCircle className="w-4 h-4" />
                   Generate Event
                 </button>
 
@@ -1149,19 +1348,19 @@ export function SpaarkPaySdkTestDashboard({
                         Copy
                       </button>
                     </div>
-                    <pre className="text-xs bg-muted p-3 overflow-x-auto max-h-48">
+                    <pre className="text-xs bg-muted p-3 overflow-x-auto max-h-48 rounded-md">
                       {generatedPayload}
                     </pre>
                     <div className="flex items-center gap-2">
                       <label className="text-xs font-medium">Signature:</label>
-                      <code className="text-xs bg-muted px-2 py-1 font-mono flex-1 overflow-x-auto">
+                      <code className="text-xs bg-muted px-2 py-1 font-mono flex-1 overflow-x-auto rounded">
                         {generatedSignature}
                       </code>
                       <button
                         onClick={() => copyToClipboard(generatedSignature)}
-                        className="w-8 h-8 border border-border bg-background hover:bg-muted transition-colors flex items-center justify-center"
+                        className="w-8 h-8 border border-border bg-background hover:bg-muted transition-colors flex items-center justify-center rounded-md"
                       >
-                        <CopyIcon />
+                        <Copy className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -1169,7 +1368,7 @@ export function SpaarkPaySdkTestDashboard({
               </div>
 
               {/* Signature Verifier */}
-              <div className="border border-border bg-background p-6 space-y-4">
+              <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
                 <div>
                   <h3 className="font-semibold">Signature Verifier</h3>
                   <p className="text-xs text-muted-foreground">Test webhook signature verification</p>
@@ -1183,7 +1382,7 @@ export function SpaarkPaySdkTestDashboard({
                       value={verifyPayload}
                       onChange={(e) => setVerifyPayload(e.target.value)}
                       rows={4}
-                      className="w-full px-2.5 py-2 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring resize-none"
+                      className="w-full px-2.5 py-2 text-xs font-mono border border-input bg-transparent rounded-md outline-none focus:border-ring resize-none"
                     />
                   </div>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -1193,7 +1392,7 @@ export function SpaarkPaySdkTestDashboard({
                         placeholder="HMAC-SHA256 signature"
                         value={verifySignature}
                         onChange={(e) => setVerifySignature(e.target.value)}
-                        className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                        className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-md outline-none focus:border-ring"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1203,7 +1402,7 @@ export function SpaarkPaySdkTestDashboard({
                         placeholder="whsec_..."
                         value={verifySecret}
                         onChange={(e) => setVerifySecret(e.target.value)}
-                        className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                        className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-md outline-none focus:border-ring"
                       />
                     </div>
                   </div>
@@ -1225,17 +1424,17 @@ export function SpaarkPaySdkTestDashboard({
                         addResult('Verify Signature', 'error', undefined, 'Invalid JSON payload');
                       }
                     }}
-                    className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                    className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 rounded-md"
                   >
-                    <ShieldIcon />
+                    <Shield className="w-4 h-4" />
                     Verify Signature
                   </button>
 
                   {verifyResult !== null && (
-                    <div className={`p-3 text-xs flex items-center gap-2 ${
+                    <div className={`p-3 text-xs flex items-center gap-2 rounded-md ${
                       verifyResult ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                     }`}>
-                      {verifyResult ? <CheckIcon className="text-green-600" /> : <XIcon className="text-red-600" />}
+                      {verifyResult ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <XCircle className="w-4 h-4 text-red-600" />}
                       {verifyResult ? 'Signature is valid' : 'Signature is invalid'}
                     </div>
                   )}
@@ -1243,7 +1442,7 @@ export function SpaarkPaySdkTestDashboard({
               </div>
 
               {/* Event Parser */}
-              <div className="border border-border bg-background p-6 space-y-4">
+              <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
                 <div>
                   <h3 className="font-semibold">Event Parser</h3>
                   <p className="text-xs text-muted-foreground">Parse and analyze raw webhook JSON</p>
@@ -1257,7 +1456,7 @@ export function SpaarkPaySdkTestDashboard({
                       value={parseInput}
                       onChange={(e) => setParseInput(e.target.value)}
                       rows={4}
-                      className="w-full px-2.5 py-2 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring resize-none"
+                      className="w-full px-2.5 py-2 text-xs font-mono border border-input bg-transparent rounded-md outline-none focus:border-ring resize-none"
                     />
                   </div>
 
@@ -1274,14 +1473,14 @@ export function SpaarkPaySdkTestDashboard({
                         addResult('Parse Event', 'error', undefined, 'Invalid JSON');
                       }
                     }}
-                    className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                    className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 rounded-md"
                   >
-                    <CodeIcon />
+                    <Code className="w-4 h-4" />
                     Parse Event
                   </button>
 
                   {parseError && (
-                    <div className="p-3 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                    <div className="p-3 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-md">
                       {parseError}
                     </div>
                   )}
@@ -1289,26 +1488,26 @@ export function SpaarkPaySdkTestDashboard({
                   {parsedEvent && (
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="p-2 bg-muted">
+                        <div className="p-2 bg-muted rounded">
                           <span className="text-muted-foreground">Event ID:</span>
                           <p className="font-mono truncate">{String(parsedEvent.eventId ?? 'N/A')}</p>
                         </div>
-                        <div className="p-2 bg-muted">
+                        <div className="p-2 bg-muted rounded">
                           <span className="text-muted-foreground">Event Type:</span>
                           <p className="font-medium">{String(parsedEvent.eventType ?? 'N/A')}</p>
                         </div>
-                        <div className="p-2 bg-muted">
+                        <div className="p-2 bg-muted rounded">
                           <span className="text-muted-foreground">Timestamp:</span>
                           <p className="font-mono truncate">{String(parsedEvent.timestamp ?? 'N/A')}</p>
                         </div>
-                        <div className="p-2 bg-muted">
+                        <div className="p-2 bg-muted rounded">
                           <span className="text-muted-foreground">Status:</span>
                           <p className="font-medium">{String((parsedEvent.data as Record<string, unknown>)?.status ?? 'N/A')}</p>
                         </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-medium">Full Data</label>
-                        <pre className="text-xs bg-muted p-3 overflow-x-auto max-h-48">
+                        <pre className="text-xs bg-muted p-3 overflow-x-auto max-h-48 rounded-md">
                           {JSON.stringify(parsedEvent, null, 2)}
                         </pre>
                       </div>
@@ -1318,7 +1517,7 @@ export function SpaarkPaySdkTestDashboard({
               </div>
 
               {/* Event Log */}
-              <div className="border border-border bg-background p-6 space-y-4">
+              <div className="border border-border bg-background p-6 space-y-4 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold">Event Log</h3>
@@ -1328,7 +1527,7 @@ export function SpaarkPaySdkTestDashboard({
                     <select
                       value={eventLogFilter}
                       onChange={(e) => setEventLogFilter(e.target.value as 'all' | 'deposit' | 'payout' | 'refund')}
-                      className="h-8 px-2 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                      className="h-8 px-2 text-xs border border-input bg-transparent rounded-md outline-none focus:border-ring"
                     >
                       <option value="all">All</option>
                       <option value="deposit">Deposits</option>
@@ -1360,7 +1559,7 @@ export function SpaarkPaySdkTestDashboard({
                         <div key={event.id} className="py-3 space-y-1">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className={`px-1.5 py-0.5 text-xs font-medium ${
+                              <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${
                                 event.eventType.includes('completed') ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
                                 event.eventType.includes('failed') ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
                                 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
@@ -1396,7 +1595,7 @@ export function SpaarkPaySdkTestDashboard({
             )}
           </div>
 
-          <div className="border border-border bg-background divide-y divide-border max-h-[600px] overflow-y-auto">
+          <div className="border border-border bg-background divide-y divide-border max-h-[600px] overflow-y-auto rounded-lg">
             {results.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground text-xs">
                 No results yet. Execute an operation to see results here.
@@ -1407,9 +1606,9 @@ export function SpaarkPaySdkTestDashboard({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {result.status === 'success' ? (
-                        <CheckIcon className="text-green-600" />
+                        <CheckCircle2 className="w-4 h-4 text-green-600" />
                       ) : (
-                        <XIcon className="text-red-600" />
+                        <XCircle className="w-4 h-4 text-red-600" />
                       )}
                       <span className="font-medium text-sm">{result.operation}</span>
                     </div>
@@ -1419,7 +1618,7 @@ export function SpaarkPaySdkTestDashboard({
                   {result.error ? (
                     <p className="text-xs text-red-600">{result.error}</p>
                   ) : (
-                    <pre className="text-xs bg-muted p-2 overflow-x-auto max-h-48">
+                    <pre className="text-xs bg-muted p-2 overflow-x-auto max-h-48 rounded">
                       {JSON.stringify(result.response, null, 2)}
                     </pre>
                   )}
@@ -1432,117 +1631,5 @@ export function SpaarkPaySdkTestDashboard({
     </div>
   );
 }
-
-// Simple SVG Icons (no external dependencies)
-const SettingsIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
-const PlayIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const WalletIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-  </svg>
-);
-
-const PhoneIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-  </svg>
-);
-
-const RefreshIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-  </svg>
-);
-
-const LoaderIcon = () => (
-  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-  </svg>
-);
-
-const CopyIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-  </svg>
-);
-
-const CheckIcon = ({ className = '' }: { className?: string }) => (
-  <svg className={`w-4 h-4 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const XIcon = ({ className = '' }: { className?: string }) => (
-  <svg className={`w-4 h-4 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const BeakerIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-  </svg>
-);
-
-const ToolkitIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
-const ChartIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-  </svg>
-);
-
-const SearchIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-  </svg>
-);
-
-const SignalIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-  </svg>
-);
-
-const KeyIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-  </svg>
-);
-
-const WebhookIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-  </svg>
-);
-
-const ShieldIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-  </svg>
-);
-
-const CodeIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-  </svg>
-);
 
 export default SpaarkPaySdkTestDashboard;

@@ -59,7 +59,7 @@ pnpm dlx shadcn@latest add chart
 pnpm dlx shadcn@latest add skeleton
 pnpm dlx shadcn@latest add spinner
 
-# Or install manually
+# Or install manually (lucide-react is required for icons)
 npm install lucide-react @radix-ui/react-tabs @radix-ui/react-select @radix-ui/react-dialog recharts @tanstack/react-table
 
 # The following are bundled with the SDK (no need to install):
@@ -103,8 +103,13 @@ console.log(deposit.depositId, deposit.status);
 - **Products**: Product management with domain configuration
 
 ### React Components
-- **Test Dashboard**: Interactive SDK testing UI with 6 tabs (Deposit, Payout, Status, Toolkit, Finances, Webhooks)
+- **Test Dashboard**: Interactive SDK testing UI with 4 modes and 6 tabs
+  - **Demo Mode**: Finance Dashboard with mock data (no API key required)
+  - **Demo Expert**: Test Dashboard with simulated API responses (no API key required)
+  - **Sandbox Mode**: Finance Dashboard connected to Pawapay sandbox API
+  - **Production Mode**: Finance Dashboard connected to Pawapay production API
 - **Finance Dashboard**: Transaction analytics with charts and KPIs
+- **Icons**: lucide-react icons throughout the UI
 - **shadcn/ui Components**: Button, Tabs, Select, Card, Input, Table, Skeleton, Spinner
 - **Charts**: Area, Bar, Pie charts with Recharts
 - **i18n**: French/English support
@@ -481,7 +486,16 @@ const limits = await sdk.utils.getTransactionLimits('MTN_MOMO_CMR');
 
 ### Test Dashboard
 
-Interactive testing UI with 6 tabs: Deposit, Payout, Status, Toolkit, Finances, Webhooks.
+Interactive testing UI with **4 operation modes** and 6 tabs (Deposit, Payout, Status, Toolkit, Finances, Webhooks).
+
+#### Dashboard Modes
+
+| Mode | Description | API Key Required |
+|------|-------------|------------------|
+| **Demo** | Finance Dashboard with mock/fake data | No |
+| **Demo Expert** | Test Dashboard with simulated API responses | No |
+| **Sandbox** | Finance Dashboard connected to Pawapay sandbox API | Yes |
+| **Production** | Finance Dashboard connected to Pawapay production API | Yes |
 
 ```tsx
 import { SpaarkPaySdkTestDashboard } from 'spaark-payapi-sdk/react';
@@ -492,7 +506,7 @@ export default function TestPage() {
       apiKey="pk_sandbox_xxx"              // Optional: pre-configured API key
       environment="sandbox"                 // 'sandbox' | 'production'
       apiBasePath="/api/pawapay"           // Backend proxy route
-      demoMode={false}                      // Enable demo mode (simulated responses)
+      demoMode={false}                      // Start in demo mode (default: false)
       onDepositComplete={(res) => console.log('Deposit:', res)}
       onPayoutComplete={(res) => console.log('Payout:', res)}
       onError={(err) => console.error(err)}
@@ -502,7 +516,10 @@ export default function TestPage() {
 }
 ```
 
-Use `demoMode={true}` to test without API key.
+**Mode Selection:**
+- Without `apiKey` or `demoMode`: Shows mode selection screen
+- With `demoMode={true}`: Starts directly in Demo mode
+- With `apiKey` + `environment`: Starts in Sandbox or Production mode
 
 #### Backend Proxy Setup (Next.js)
 
