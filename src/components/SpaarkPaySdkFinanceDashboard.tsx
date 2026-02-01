@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, forwardRef } from 'react';
+import { useState, useMemo, useCallback, forwardRef, useRef, useEffect } from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import {
@@ -34,6 +34,8 @@ import {
   Inbox,
   BarChart3,
   LayoutDashboard,
+  MoreVertical,
+  FlaskConical,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -115,6 +117,7 @@ const translations = {
     expertMode: 'Mode Expert',
     refresh: 'Actualiser',
     settings: 'Paramètres',
+    actions: 'Actions',
     noTransactions: 'Aucune transaction',
     noTransactionsDesc: 'Les transactions apparaîtront ici une fois effectuées.',
     addTransaction: 'Nouvelle transaction',
@@ -159,6 +162,7 @@ const translations = {
     expertMode: 'Expert Mode',
     refresh: 'Refresh',
     settings: 'Settings',
+    actions: 'Actions',
     noTransactions: 'No transactions',
     noTransactionsDesc: 'Transactions will appear here once made.',
     addTransaction: 'New transaction',
@@ -359,15 +363,72 @@ const SelectItem = forwardRef<
     )}
     {...props}
   >
-    <span className="absolute left-2 flex h-4 w-4 items-center justify-center">
+    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <Check className="h-3.5 w-3.5" />
+        <Check className="h-3 w-3" />
       </SelectPrimitive.ItemIndicator>
     </span>
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
+
+// Simple Dropdown Menu
+interface DropdownMenuProps {
+  trigger: React.ReactNode;
+  children: React.ReactNode;
+  align?: 'start' | 'end';
+}
+
+function DropdownMenu({ trigger, children, align = 'end' }: DropdownMenuProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <div onClick={() => setOpen(!open)}>{trigger}</div>
+      {open && (
+        <div
+          className={cn(
+            'absolute z-50 mt-1 min-w-[160px] rounded-md border bg-popover p-1 shadow-md',
+            align === 'end' ? 'right-0' : 'left-0'
+          )}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface DropdownMenuItemProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  icon?: React.ReactNode;
+}
+
+function DropdownMenuItem({ children, onClick, icon }: DropdownMenuItemProps) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
 
 // Card
 const Card = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
@@ -601,15 +662,23 @@ export function SpaarkPaySdkFinanceDashboard({
     const payoutsTotal = payouts.filter(tx => tx.status === 'COMPLETED').reduce((sum, tx) => sum + tx.amount, 0);
     const refundsTotal = refunds.filter(tx => tx.status === 'COMPLETED').reduce((sum, tx) => sum + tx.amount, 0);
 
+    // Totaux pour les graphiques (toutes transactions)
+    const depositsAllTotal = deposits.reduce((sum, tx) => sum + tx.amount, 0);
+    const payoutsAllTotal = payouts.reduce((sum, tx) => sum + tx.amount, 0);
+    const refundsAllTotal = refunds.reduce((sum, tx) => sum + tx.amount, 0);
+
     return {
       totalVolume,
       depositsCount: deposits.length,
       depositsTotal,
+      depositsAllTotal,
       payoutsCount: payouts.length,
       payoutsTotal,
+      payoutsAllTotal,
       failedCount: failed.length,
       refundsCount: refunds.length,
       refundsTotal,
+      refundsAllTotal,
       pendingCount: pending.length,
       completedCount: completed.length,
       cancelledCount: cancelled.length,
@@ -617,28 +686,33 @@ export function SpaarkPaySdkFinanceDashboard({
   }, [transactions]);
 
   const chartData = useMemo(() => {
-    const byDate: Record<string, { date: string; deposits: number; payouts: number; refunds: number }> = {};
+    const byDate: Record<string, { date: string; dateSort: number; deposits: number; payouts: number; refunds: number }> = {};
 
     transactions.forEach(tx => {
-      const date = new Date(tx.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US', {
+      const txDate = new Date(tx.createdAt);
+      const date = txDate.toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US', {
         day: '2-digit',
         month: 'short',
       });
 
       if (!byDate[date]) {
-        byDate[date] = { date, deposits: 0, payouts: 0, refunds: 0 };
+        byDate[date] = { date, dateSort: txDate.getTime(), deposits: 0, payouts: 0, refunds: 0 };
       }
 
-      if (tx.status === 'COMPLETED') {
-        byDate[date][tx.type === 'deposit' ? 'deposits' : tx.type === 'payout' ? 'payouts' : 'refunds'] += tx.amount;
-      }
+      // Compte toutes les transactions, pas seulement COMPLETED
+      const key = tx.type === 'deposit' ? 'deposits' : tx.type === 'payout' ? 'payouts' : 'refunds';
+      byDate[date][key] += tx.amount;
     });
 
-    const volumeData = Object.values(byDate).slice(-7);
+    // Tri par date et prend les 7 derniers jours
+    const volumeData = Object.values(byDate)
+      .sort((a, b) => a.dateSort - b.dateSort)
+      .slice(-7)
+      .map(({ dateSort, ...rest }) => rest);
     const typeData = [
-      { name: t.deposit, value: stats.depositsTotal, count: stats.depositsCount, fill: CHART_COLORS.deposit },
-      { name: t.payout, value: stats.payoutsTotal, count: stats.payoutsCount, fill: CHART_COLORS.payout },
-      { name: t.refund, value: stats.refundsTotal, count: stats.refundsCount, fill: CHART_COLORS.refund },
+      { name: t.deposit, value: stats.depositsAllTotal, count: stats.depositsCount, fill: CHART_COLORS.deposit },
+      { name: t.payout, value: stats.payoutsAllTotal, count: stats.payoutsCount, fill: CHART_COLORS.payout },
+      { name: t.refund, value: stats.refundsAllTotal, count: stats.refundsCount, fill: CHART_COLORS.refund },
     ];
     const statusData = [
       { name: 'Completed', value: stats.completedCount, fill: CHART_COLORS.COMPLETED },
@@ -798,30 +872,44 @@ export function SpaarkPaySdkFinanceDashboard({
           <h1 className="text-2xl font-bold tracking-tight">{title || t.title}</h1>
           <p className="text-muted-foreground mt-1">{subtitle || t.subtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <TabsList>
-            <TabsTrigger value="dashboard" className="gap-2">
+        <div className="flex items-center gap-2">
+          <TabsList className="h-9">
+            <TabsTrigger value="dashboard" className="gap-2 h-7">
               <LayoutDashboard className="w-4 h-4" />
               {t.dashboard}
             </TabsTrigger>
-            <TabsTrigger value="charts" className="gap-2">
+            <TabsTrigger value="charts" className="gap-2 h-7">
               <BarChart3 className="w-4 h-4" />
               {t.charts}
             </TabsTrigger>
           </TabsList>
           {onRefresh && (
-            <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
+            <Button variant="outline" size="sm" className="h-9" onClick={onRefresh} disabled={isLoading}>
               <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
               {t.refresh}
             </Button>
           )}
-          {onSettings && (
-            <Button variant="outline" size="icon" onClick={onSettings} title={t.settings}>
-              <Settings className="w-4 h-4" />
-            </Button>
-          )}
-          {showExpertMode && onExpertModeClick && (
-            <Button onClick={onExpertModeClick}>{t.expertMode}</Button>
+          {(onSettings || (showExpertMode && onExpertModeClick)) && (
+            <DropdownMenu
+              trigger={
+                <Button variant="outline" size="sm" className="h-9 gap-1">
+                  <MoreVertical className="w-4 h-4" />
+                  {t.actions}
+                  <ChevronDown className="w-3 h-3 opacity-50" />
+                </Button>
+              }
+            >
+              {onSettings && (
+                <DropdownMenuItem onClick={onSettings} icon={<Settings className="w-4 h-4" />}>
+                  {t.settings}
+                </DropdownMenuItem>
+              )}
+              {showExpertMode && onExpertModeClick && (
+                <DropdownMenuItem onClick={onExpertModeClick} icon={<FlaskConical className="w-4 h-4" />}>
+                  {t.expertMode}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenu>
           )}
         </div>
       </div>
