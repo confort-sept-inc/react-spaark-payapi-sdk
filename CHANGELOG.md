@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.0.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v2.0.0...v2.0.1) (2026-02-01)
+
+
+### Bug Fixes
+
+* **polling:** handle eventual consistency in pollUntilComplete ([38b20a5](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/38b20a5191718f6dd05eaed44bd3386cf7c929b3))
+
 ## [2.0.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.7.3...v2.0.0) (2026-02-01)
 
 
