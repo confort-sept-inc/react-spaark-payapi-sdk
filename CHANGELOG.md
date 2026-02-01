@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.6.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.6.0...v1.6.1) (2026-02-01)
+
+
+### Documentation
+
+* **readme:** expand documentation with architecture and API reference ([a7a1374](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/a7a1374e3bc76bab4642fd769bb957bbf7adc4e8))
+
 ## [1.6.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.5.0...v1.6.0) (2026-02-01)
 
 
