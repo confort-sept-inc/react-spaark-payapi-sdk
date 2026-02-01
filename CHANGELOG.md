@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.3.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.3.0...v1.3.1) (2026-02-01)
+
+
+### Bug Fixes
+
+* **deps:** widen lucide-react peer dependency range ([2141d47](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/2141d4768957d228a316c15cf00b19e84d85de05))
+
 ## [1.3.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.2.2...v1.3.0) (2026-02-01)
 
 
