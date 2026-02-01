@@ -224,10 +224,11 @@ function useChart() {
 interface ChartContainerProps extends React.HTMLAttributes<HTMLDivElement> {
   config: ChartConfig;
   children: React.ReactElement;
+  height?: number;
 }
 
 const ChartContainer = forwardRef<HTMLDivElement, ChartContainerProps>(
-  ({ config, children, className, ...props }, ref) => {
+  ({ config, children, className, height = 300, ...props }, ref) => {
     const cssVars = Object.entries(config).reduce((acc, [key, value]) => {
       acc[`--color-${key}`] = value.color;
       return acc;
@@ -237,11 +238,21 @@ const ChartContainer = forwardRef<HTMLDivElement, ChartContainerProps>(
       <ChartContext.Provider value={{ config }}>
         <div
           ref={ref}
-          className={cn('flex justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line]:stroke-border/50', className)}
+          className={cn(
+            'w-full text-xs',
+            '[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground',
+            '[&_.recharts-cartesian-grid_line[stroke="#ccc"]]:stroke-border/50',
+            '[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border',
+            '[&_.recharts-polar-grid_[stroke="#ccc"]]:stroke-border',
+            '[&_.recharts-radial-bar-background-sector]:fill-muted',
+            '[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted',
+            '[&_.recharts-reference-line_[stroke="#ccc"]]:stroke-border',
+            className
+          )}
           style={cssVars as React.CSSProperties}
           {...props}
         >
-          <RechartsPrimitive.ResponsiveContainer width="100%" height="100%">
+          <RechartsPrimitive.ResponsiveContainer width="100%" height={height}>
             {children}
           </RechartsPrimitive.ResponsiveContainer>
         </div>
@@ -1335,7 +1346,7 @@ export function SpaarkPaySdkFinanceDashboard({
                       deposits: { label: t.deposits, color: CHART_COLORS.deposit },
                       payouts: { label: t.payouts, color: CHART_COLORS.payout },
                     }}
-                    className="h-[300px] w-full"
+                    className="w-full"
                   >
                     <AreaChart accessibilityLayer data={chartData.volumeData}>
                       <defs>
@@ -1373,7 +1384,7 @@ export function SpaarkPaySdkFinanceDashboard({
                       payout: { label: t.payout, color: CHART_COLORS.payout },
                       refund: { label: t.refund, color: CHART_COLORS.refund },
                     }}
-                    className="h-[300px] w-full"
+                    className="w-full"
                   >
                     <BarChart accessibilityLayer data={chartData.typeData}>
                       <CartesianGrid vertical={false} />
@@ -1404,7 +1415,7 @@ export function SpaarkPaySdkFinanceDashboard({
                       Failed: { label: t.failed, color: CHART_COLORS.FAILED },
                       Cancelled: { label: t.cancelled, color: CHART_COLORS.CANCELLED },
                     }}
-                    className="h-[300px] w-full"
+                    className="w-full"
                   >
                     <PieChart accessibilityLayer>
                       <Pie
