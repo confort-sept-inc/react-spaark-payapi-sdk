@@ -18,19 +18,32 @@ pnpm add spaark-payapi-sdk
 yarn add spaark-payapi-sdk
 ```
 
-### For React Components
+### For React Components (shadcn/ui)
 
-The SDK includes React components that require additional peer dependencies:
+The SDK includes React components built with shadcn/ui patterns. Install the required peer dependencies:
 
 ```bash
-# Required for React components
-npm install react react-dom lucide-react @radix-ui/react-tabs @radix-ui/react-select @radix-ui/react-dialog
+# Core React dependencies
+npm install react react-dom
+
+# shadcn/ui prerequisites (via shadcn CLI)
+pnpm dlx shadcn@latest add button
+pnpm dlx shadcn@latest add tabs
+pnpm dlx shadcn@latest add select
+pnpm dlx shadcn@latest add chart
+pnpm dlx shadcn@latest add skeleton
+pnpm dlx shadcn@latest add spinner
+
+# Or install manually
+npm install lucide-react @radix-ui/react-tabs @radix-ui/react-select @radix-ui/react-dialog recharts @tanstack/react-table
 
 # The following are bundled with the SDK (no need to install):
 # - clsx
 # - tailwind-merge
 # - class-variance-authority
 ```
+
+> **Note**: The components use shadcn/ui styling conventions. Make sure your project has Tailwind CSS configured with the shadcn/ui theme variables.
 
 ## Quick Start
 
@@ -61,7 +74,9 @@ console.log(deposit.depositId, deposit.status);
 - **Toolkit**: Predict Provider, Active Configuration, Provider Availability
 - **Finances**: Wallet Balances, Statement Generation
 - **Webhooks**: Signature verification, Event parsing
-- **React Components**: Test dashboard + Finance dashboard
+- **React Components**: Test Dashboard + Finance Dashboard with Charts
+- **shadcn/ui**: Button, Tabs, Select, Card, Input components
+- **Charts**: Area, Bar, Pie charts with recharts
 - **Full TypeScript**: Complete type definitions
 - **i18n**: French/English support
 
@@ -348,45 +363,106 @@ export default function FinancePage() {
   return (
     <SpaarkPaySdkFinanceDashboard
       transactions={transactions}
-      title="My Finance Dashboard"        // Customizable
-      locale="fr"                          // 'fr' | 'en'
-      onRefresh={() => fetchData()}        // Refresh button handler
-      onTransactionClick={(tx) => {}}      // Row click handler
-      onExpertModeClick={() => {}}         // Expert mode button
-      showExpertMode={true}                // Show/hide expert button
-      isLoading={false}                    // Loading state
+      title="My Finance Dashboard"
+      subtitle="Overview of your transactions"
+      locale="fr"                              // 'fr' | 'en'
+      onRefresh={() => fetchData()}            // Refresh button
+      onSettings={() => openSettings()}        // Settings button (gear icon)
+      onAddTransaction={() => openForm()}      // CTA when empty
+      onTransactionClick={(tx) => {}}          // Row click
+      onExpertModeClick={() => {}}             // Expert mode button
+      showExpertMode={true}
+      isLoading={false}
     />
   );
 }
 ```
 
+**Props:**
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `transactions` | `Transaction[]` | Array of transactions to display |
+| `title` | `string` | Dashboard title (default: "Tableau de bord financier") |
+| `subtitle` | `string` | Dashboard subtitle |
+| `locale` | `'fr' \| 'en'` | Language (default: 'fr') |
+| `onRefresh` | `() => void` | Refresh button callback |
+| `onSettings` | `() => void` | Settings button callback (gear icon) |
+| `onAddTransaction` | `() => void` | CTA button callback when no transactions |
+| `onTransactionClick` | `(tx) => void` | Table row click callback |
+| `onExpertModeClick` | `() => void` | Expert mode button callback |
+| `showExpertMode` | `boolean` | Show/hide expert mode button |
+| `isLoading` | `boolean` | Show loading spinner |
+
 **Features:**
-- 5 KPI cards (Total Volume, Deposits, Payouts, Failed, Refunds)
+
+**Dashboard Tab:**
+- 8 KPI cards in 2 rows:
+  - Row 1: Total Volume, Deposits, Payouts, Refunds
+  - Row 2: Pending, Completed, Failed, Cancelled
 - Search by transaction ID or phone number
-- Filter by type (deposit/payout/refund) and status
-- Paginated transactions table
-- Copy transaction ID to clipboard
-- i18n support (French/English)
-- Customizable title
-- Expert Mode button integration
+- Dropdown filters (shadcn/ui Select) for type and status
+- Paginated transactions table with copy ID button
+- Empty state with CTA button
+
+**Charts Tab:**
+- Area Chart: Volume over time (deposits vs payouts)
+- Bar Chart: Transaction amounts by type
+- Pie Chart: Status distribution (donut style)
+
+**UI Components (shadcn/ui style):**
+- Button (default, outline, ghost, secondary variants)
+- Tabs (Dashboard / Charts)
+- Select with dropdown
+- Card with header and content
+- Input with search icon
+- Spinner for loading states
+
+**i18n:**
+- French (default) and English support
+- All labels, buttons, and chart legends translated
 
 ## TypeScript Types
 
 ```typescript
 import type {
+  // SDK Config
   SpaarkPayApiSdkConfig,
+
+  // Transactions
   DepositRequest,
   DepositResponse,
   PayoutRequest,
   PayoutResponse,
   TransactionStatus,
   TransactionStatusResponse,
+
+  // Providers
   Correspondent,
   Currency,
+
+  // React Components
   Transaction,
   TransactionType,
-  // ... and more
+  TransactionStatus,
+  SpaarkPaySdkFinanceDashboardProps,
+  SpaarkPaySdkTestDashboardProps,
 } from 'spaark-payapi-sdk';
+
+// Transaction type for Finance Dashboard
+type Transaction = {
+  id: string;
+  type: 'deposit' | 'payout' | 'refund';
+  amount: number;
+  currency: string;
+  status: 'ACCEPTED' | 'PENDING' | 'ENQUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'REJECTED';
+  provider: Correspondent;
+  phoneNumber: string;
+  description?: string;
+  createdAt: string;
+  updatedAt?: string;
+  failureReason?: string;
+};
 ```
 
 ## Error Handling
