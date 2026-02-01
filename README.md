@@ -47,8 +47,9 @@ console.log(deposit.depositId, deposit.status);
 - **Toolkit**: Predict Provider, Active Configuration, Provider Availability
 - **Finances**: Wallet Balances, Statement Generation
 - **Webhooks**: Signature verification, Event parsing
-- **React Component**: Test dashboard with demo mode
+- **React Components**: Test dashboard + Finance dashboard
 - **Full TypeScript**: Complete type definitions
+- **i18n**: French/English support
 
 ## Supported Providers
 
@@ -284,12 +285,12 @@ const provider = sdk.utils.detectCorrespondent('237670000000');
 const limits = await sdk.utils.getTransactionLimits('MTN_MOMO_CMR');
 ```
 
-## React Dashboard Component
+## React Components
+
+### Test Dashboard
 
 ```tsx
-'use client';
-
-import { PawapayTestDashboard } from 'spaark-payapi-sdk';
+import { PawapayTestDashboard } from 'spaark-payapi-sdk/react';
 
 export default function TestPage() {
   return (
@@ -307,6 +308,54 @@ export default function TestPage() {
 
 Use `demoMode={true}` to test without API key.
 
+### Finance Dashboard
+
+```tsx
+import {
+  SpaarkPaySdkFinanceDashboard,
+  type Transaction
+} from 'spaark-payapi-sdk/react';
+
+const transactions: Transaction[] = [
+  {
+    id: 'tx-001',
+    type: 'deposit',
+    amount: 5000,
+    currency: 'XAF',
+    status: 'COMPLETED',
+    provider: 'MTN_MOMO_CMR',
+    phoneNumber: '237670000000',
+    createdAt: '2025-01-15T10:00:00Z',
+  },
+  // ... more transactions
+];
+
+export default function FinancePage() {
+  return (
+    <SpaarkPaySdkFinanceDashboard
+      transactions={transactions}
+      title="My Finance Dashboard"        // Customizable
+      locale="fr"                          // 'fr' | 'en'
+      onRefresh={() => fetchData()}        // Refresh button handler
+      onTransactionClick={(tx) => {}}      // Row click handler
+      onExpertModeClick={() => {}}         // Expert mode button
+      showExpertMode={true}                // Show/hide expert button
+      isLoading={false}                    // Loading state
+    />
+  );
+}
+```
+
+**Features:**
+- 5 KPI cards (Total Volume, Deposits, Payouts, Failed, Refunds)
+- Search by transaction ID or phone number
+- Filter by type (deposit/payout/refund) and status
+- Paginated transactions table
+- Copy transaction ID to clipboard
+- i18n support (French/English)
+- Customizable title
+- Expert Mode button integration
+
 ## TypeScript Types
 
 ```typescript
@@ -320,6 +369,8 @@ import type {
   TransactionStatusResponse,
   Correspondent,
   Currency,
+  Transaction,
+  TransactionType,
   // ... and more
 } from 'spaark-payapi-sdk';
 ```
