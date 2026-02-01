@@ -3,9 +3,14 @@
 import { useState, useCallback } from 'react';
 import type { Correspondent } from './constants/correspondents';
 import type { DepositResponse, PayoutResponse } from './types/transactions';
+import type { WebhookEventType } from './types/webhooks';
+import {
+  generateWebhook,
+  WEBHOOK_EVENT_TYPES,
+} from './mocks/webhook-generators';
 
 type OperationStatus = 'idle' | 'loading' | 'success' | 'error';
-type TabType = 'deposit' | 'payout' | 'status' | 'toolkit' | 'finances';
+type TabType = 'deposit' | 'payout' | 'status' | 'toolkit' | 'finances' | 'webhooks';
 
 interface TestResult {
   id: string;
@@ -14,6 +19,15 @@ interface TestResult {
   response?: unknown;
   error?: string;
   timestamp: string;
+}
+
+interface WebhookTestEvent {
+  id: string;
+  eventType: string;
+  payload: unknown;
+  signature: string;
+  receivedAt: string;
+  isVerified: boolean | null;
 }
 
 export interface PawapayTestDashboardProps {
@@ -136,6 +150,22 @@ const createMockPublicKeysResponse = () => [
 
 const simulateDelay = (ms: number = 800) => new Promise(resolve => setTimeout(resolve, ms + Math.random() * 400));
 
+// HMAC-SHA256 computation using Web Crypto API (browser-compatible)
+async function computeHmacSha256(message: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 const generateUUID = (): string => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -189,6 +219,24 @@ export function PawapayTestDashboard({
 
   const [results, setResults] = useState<TestResult[]>([]);
   const [currentStatus, setCurrentStatus] = useState<OperationStatus>('idle');
+
+  // Webhook testing states
+  const [webhookSecret, setWebhookSecret] = useState('whsec_test_secret_key');
+  const [webhookEvents, setWebhookEvents] = useState<WebhookTestEvent[]>([]);
+  const [webhookEventType, setWebhookEventType] = useState<WebhookEventType>('deposit.completed');
+  const [webhookAmount, setWebhookAmount] = useState('5000');
+  const [webhookPhone, setWebhookPhone] = useState('237670000000');
+  const [webhookProvider, setWebhookProvider] = useState<Correspondent>('MTN_MOMO_CMR');
+  const [generatedPayload, setGeneratedPayload] = useState<string>('');
+  const [generatedSignature, setGeneratedSignature] = useState<string>('');
+  const [verifyPayload, setVerifyPayload] = useState<string>('');
+  const [verifySignature, setVerifySignature] = useState<string>('');
+  const [verifySecret, setVerifySecret] = useState<string>('');
+  const [verifyResult, setVerifyResult] = useState<boolean | null>(null);
+  const [parseInput, setParseInput] = useState<string>('');
+  const [parsedEvent, setParsedEvent] = useState<Record<string, unknown> | null>(null);
+  const [parseError, setParseError] = useState<string>('');
+  const [eventLogFilter, setEventLogFilter] = useState<'all' | 'deposit' | 'payout' | 'refund'>('all');
 
   const addResult = useCallback((operation: string, status: OperationStatus, response?: unknown, error?: string) => {
     const result: TestResult = {
@@ -510,9 +558,9 @@ export function PawapayTestDashboard({
     return (
       <div className={`space-y-8 ${className}`}>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">SDK Test Console</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Spaark Pay Console</h1>
           <p className="text-muted-foreground mt-1">
-            Configure your Pawapay SDK credentials to start testing
+            Configurez vos identifiants PawaPay pour commencer
           </p>
         </div>
 
@@ -540,29 +588,37 @@ export function PawapayTestDashboard({
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-medium">Environment</label>
+              <label className="text-xs font-medium">Environnement</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setEnvironment('sandbox')}
-                  className={`h-8 px-3 text-xs font-medium border transition-colors ${
+                  className={`h-8 px-3 text-xs font-medium border transition-colors flex items-center gap-1.5 ${
                     environment === 'sandbox'
-                      ? 'bg-primary text-primary-foreground border-primary'
+                      ? 'bg-blue-600 text-white border-blue-600'
                       : 'bg-background border-border hover:bg-muted'
                   }`}
                 >
+                  <span className={`w-2 h-2 rounded-full ${environment === 'sandbox' ? 'bg-blue-200' : 'bg-blue-500'}`} />
                   Sandbox
                 </button>
                 <button
                   onClick={() => setEnvironment('production')}
-                  className={`h-8 px-3 text-xs font-medium border transition-colors ${
+                  className={`h-8 px-3 text-xs font-medium border transition-colors flex items-center gap-1.5 ${
                     environment === 'production'
-                      ? 'bg-primary text-primary-foreground border-primary'
+                      ? 'bg-green-600 text-white border-green-600'
                       : 'bg-background border-border hover:bg-muted'
                   }`}
                 >
+                  <span className={`w-2 h-2 rounded-full ${environment === 'production' ? 'bg-green-200' : 'bg-green-500'}`} />
                   Production
                 </button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                {environment === 'sandbox'
+                  ? 'Utilisez le sandbox pour tester sans frais réels'
+                  : 'Attention : les transactions en production sont réelles'
+                }
+              </p>
             </div>
 
             <button
@@ -597,17 +653,27 @@ export function PawapayTestDashboard({
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">SDK Test Console</h1>
-            {isDemoMode && (
+            <h1 className="text-2xl font-bold tracking-tight">Spaark Pay Console</h1>
+            {isDemoMode ? (
               <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
                 DEMO
+              </span>
+            ) : environment === 'production' ? (
+              <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                PRODUCTION
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                SANDBOX
               </span>
             )}
           </div>
           <p className="text-muted-foreground mt-1">
             {isDemoMode
               ? 'Mode démo - Les réponses sont simulées'
-              : `Test Pawapay SDK operations in ${environment} mode`
+              : environment === 'production'
+                ? 'Mode production - Transactions réelles'
+                : 'Mode sandbox - Environnement de test'
             }
           </p>
         </div>
@@ -668,6 +734,15 @@ export function PawapayTestDashboard({
             >
               <ChartIcon />
               Finances
+            </button>
+            <button
+              onClick={() => setActiveTab('webhooks')}
+              className={`flex-1 min-w-[80px] h-8 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                activeTab === 'webhooks' ? 'bg-background text-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <WebhookIcon />
+              Webhooks
             </button>
           </div>
 
@@ -950,6 +1025,353 @@ export function PawapayTestDashboard({
               </div>
             </div>
           )}
+
+          {/* Webhooks Tab */}
+          {activeTab === 'webhooks' && (
+            <div className="space-y-4">
+              {/* Webhook Secret Configuration */}
+              <div className="border border-border bg-background p-6 space-y-4">
+                <div>
+                  <h3 className="font-semibold">Webhook Secret</h3>
+                  <p className="text-xs text-muted-foreground">Configure the secret used for signing webhooks</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium">Secret Key</label>
+                  <input
+                    type="text"
+                    placeholder="whsec_..."
+                    value={webhookSecret}
+                    onChange={(e) => setWebhookSecret(e.target.value)}
+                    className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                  />
+                </div>
+              </div>
+
+              {/* Webhook Simulator */}
+              <div className="border border-border bg-background p-6 space-y-4">
+                <div>
+                  <h3 className="font-semibold">Webhook Simulator</h3>
+                  <p className="text-xs text-muted-foreground">Generate mock webhook events for testing</p>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Event Type</label>
+                    <select
+                      value={webhookEventType}
+                      onChange={(e) => setWebhookEventType(e.target.value as WebhookEventType)}
+                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    >
+                      {WEBHOOK_EVENT_TYPES.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Amount</label>
+                    <input
+                      type="number"
+                      placeholder="5000"
+                      value={webhookAmount}
+                      onChange={(e) => setWebhookAmount(e.target.value)}
+                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Phone Number</label>
+                    <input
+                      placeholder="237670000000"
+                      value={webhookPhone}
+                      onChange={(e) => setWebhookPhone(e.target.value)}
+                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Provider</label>
+                    <select
+                      value={webhookProvider}
+                      onChange={(e) => setWebhookProvider(e.target.value as Correspondent)}
+                      className="w-full h-8 px-2.5 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    >
+                      {PROVIDER_OPTIONS.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label} ({p.country})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    const event = generateWebhook(webhookEventType, {
+                      amount: webhookAmount,
+                      phoneNumber: webhookPhone,
+                      correspondent: webhookProvider,
+                    });
+                    const payload = JSON.stringify(event, null, 2);
+                    const signature = await computeHmacSha256(JSON.stringify(event), webhookSecret);
+                    setGeneratedPayload(payload);
+                    setGeneratedSignature(signature);
+
+                    // Add to event log
+                    const newEvent: WebhookTestEvent = {
+                      id: generateUUID(),
+                      eventType: webhookEventType,
+                      payload: event,
+                      signature,
+                      receivedAt: new Date().toLocaleTimeString(),
+                      isVerified: null,
+                    };
+                    setWebhookEvents((prev) => [newEvent, ...prev].slice(0, 50));
+                    addResult('Generate Webhook', 'success', { eventType: webhookEventType, eventId: event.eventId });
+                  }}
+                  className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                >
+                  <PlayIcon />
+                  Generate Event
+                </button>
+
+                {generatedPayload && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium">Generated Payload</label>
+                      <button
+                        onClick={() => copyToClipboard(generatedPayload)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <pre className="text-xs bg-muted p-3 overflow-x-auto max-h-48">
+                      {generatedPayload}
+                    </pre>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium">Signature:</label>
+                      <code className="text-xs bg-muted px-2 py-1 font-mono flex-1 overflow-x-auto">
+                        {generatedSignature}
+                      </code>
+                      <button
+                        onClick={() => copyToClipboard(generatedSignature)}
+                        className="w-8 h-8 border border-border bg-background hover:bg-muted transition-colors flex items-center justify-center"
+                      >
+                        <CopyIcon />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Signature Verifier */}
+              <div className="border border-border bg-background p-6 space-y-4">
+                <div>
+                  <h3 className="font-semibold">Signature Verifier</h3>
+                  <p className="text-xs text-muted-foreground">Test webhook signature verification</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Payload (JSON)</label>
+                    <textarea
+                      placeholder='{"eventId": "...", "eventType": "deposit.completed", ...}'
+                      value={verifyPayload}
+                      onChange={(e) => setVerifyPayload(e.target.value)}
+                      rows={4}
+                      className="w-full px-2.5 py-2 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring resize-none"
+                    />
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">Signature</label>
+                      <input
+                        placeholder="HMAC-SHA256 signature"
+                        value={verifySignature}
+                        onChange={(e) => setVerifySignature(e.target.value)}
+                        className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">Secret</label>
+                      <input
+                        type="password"
+                        placeholder="whsec_..."
+                        value={verifySecret}
+                        onChange={(e) => setVerifySecret(e.target.value)}
+                        className="w-full h-8 px-2.5 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        const parsedPayload = JSON.parse(verifyPayload);
+                        const computedSignature = await computeHmacSha256(JSON.stringify(parsedPayload), verifySecret);
+                        const isValid = computedSignature === verifySignature;
+                        setVerifyResult(isValid);
+                        addResult('Verify Signature', isValid ? 'success' : 'error', {
+                          isValid,
+                          expected: computedSignature,
+                          received: verifySignature,
+                        });
+                      } catch {
+                        setVerifyResult(false);
+                        addResult('Verify Signature', 'error', undefined, 'Invalid JSON payload');
+                      }
+                    }}
+                    className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <ShieldIcon />
+                    Verify Signature
+                  </button>
+
+                  {verifyResult !== null && (
+                    <div className={`p-3 text-xs flex items-center gap-2 ${
+                      verifyResult ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    }`}>
+                      {verifyResult ? <CheckIcon className="text-green-600" /> : <XIcon className="text-red-600" />}
+                      {verifyResult ? 'Signature is valid' : 'Signature is invalid'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Event Parser */}
+              <div className="border border-border bg-background p-6 space-y-4">
+                <div>
+                  <h3 className="font-semibold">Event Parser</h3>
+                  <p className="text-xs text-muted-foreground">Parse and analyze raw webhook JSON</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">Raw JSON</label>
+                    <textarea
+                      placeholder='Paste webhook JSON here...'
+                      value={parseInput}
+                      onChange={(e) => setParseInput(e.target.value)}
+                      rows={4}
+                      className="w-full px-2.5 py-2 text-xs font-mono border border-input bg-transparent rounded-none outline-none focus:border-ring resize-none"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      try {
+                        const parsed = JSON.parse(parseInput) as Record<string, unknown>;
+                        setParsedEvent(parsed);
+                        setParseError('');
+                        addResult('Parse Event', 'success', { eventType: parsed.eventType, eventId: parsed.eventId });
+                      } catch (e) {
+                        setParsedEvent(null);
+                        setParseError(e instanceof Error ? e.message : 'Invalid JSON');
+                        addResult('Parse Event', 'error', undefined, 'Invalid JSON');
+                      }
+                    }}
+                    className="w-full h-8 px-3 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <CodeIcon />
+                    Parse Event
+                  </button>
+
+                  {parseError && (
+                    <div className="p-3 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                      {parseError}
+                    </div>
+                  )}
+
+                  {parsedEvent && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 bg-muted">
+                          <span className="text-muted-foreground">Event ID:</span>
+                          <p className="font-mono truncate">{String(parsedEvent.eventId ?? 'N/A')}</p>
+                        </div>
+                        <div className="p-2 bg-muted">
+                          <span className="text-muted-foreground">Event Type:</span>
+                          <p className="font-medium">{String(parsedEvent.eventType ?? 'N/A')}</p>
+                        </div>
+                        <div className="p-2 bg-muted">
+                          <span className="text-muted-foreground">Timestamp:</span>
+                          <p className="font-mono truncate">{String(parsedEvent.timestamp ?? 'N/A')}</p>
+                        </div>
+                        <div className="p-2 bg-muted">
+                          <span className="text-muted-foreground">Status:</span>
+                          <p className="font-medium">{String((parsedEvent.data as Record<string, unknown>)?.status ?? 'N/A')}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium">Full Data</label>
+                        <pre className="text-xs bg-muted p-3 overflow-x-auto max-h-48">
+                          {JSON.stringify(parsedEvent, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Event Log */}
+              <div className="border border-border bg-background p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">Event Log</h3>
+                    <p className="text-xs text-muted-foreground">History of generated webhook events</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={eventLogFilter}
+                      onChange={(e) => setEventLogFilter(e.target.value as 'all' | 'deposit' | 'payout' | 'refund')}
+                      className="h-8 px-2 text-xs border border-input bg-transparent rounded-none outline-none focus:border-ring"
+                    >
+                      <option value="all">All</option>
+                      <option value="deposit">Deposits</option>
+                      <option value="payout">Payouts</option>
+                      <option value="refund">Refunds</option>
+                    </select>
+                    {webhookEvents.length > 0 && (
+                      <button
+                        onClick={() => setWebhookEvents([])}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="divide-y divide-border max-h-64 overflow-y-auto">
+                  {webhookEvents
+                    .filter((event) => eventLogFilter === 'all' || event.eventType.startsWith(eventLogFilter))
+                    .length === 0 ? (
+                    <div className="p-4 text-center text-muted-foreground text-xs">
+                      No events yet. Generate a webhook event to see it here.
+                    </div>
+                  ) : (
+                    webhookEvents
+                      .filter((event) => eventLogFilter === 'all' || event.eventType.startsWith(eventLogFilter))
+                      .map((event) => (
+                        <div key={event.id} className="py-3 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-1.5 py-0.5 text-xs font-medium ${
+                                event.eventType.includes('completed') ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                event.eventType.includes('failed') ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                              }`}>
+                                {event.eventType}
+                              </span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{event.receivedAt}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground font-mono truncate">
+                            sig: {event.signature.slice(0, 32)}...
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Results Panel */}
@@ -1094,6 +1516,24 @@ const SignalIcon = () => (
 const KeyIcon = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+  </svg>
+);
+
+const WebhookIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+  </svg>
+);
+
+const ShieldIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+  </svg>
+);
+
+const CodeIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
   </svg>
 );
 
