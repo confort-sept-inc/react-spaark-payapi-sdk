@@ -270,7 +270,7 @@ const TabsTrigger = forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+      'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=inactive]:text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow',
       className
     )}
     {...props}
@@ -359,9 +359,9 @@ const SelectItem = forwardRef<
     )}
     {...props}
   >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+    <span className="absolute left-2 flex h-4 w-4 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
+        <Check className="h-3.5 w-3.5" />
       </SelectPrimitive.ItemIndicator>
     </span>
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
@@ -791,14 +791,24 @@ export function SpaarkPaySdkFinanceDashboard({
   );
 
   return (
-    <div className={cn('space-y-6', className)}>
+    <Tabs value={activeTab} onValueChange={setActiveTab} className={cn('space-y-6', className)}>
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{title || t.title}</h1>
           <p className="text-muted-foreground mt-1">{subtitle || t.subtitle}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <TabsList>
+            <TabsTrigger value="dashboard" className="gap-2">
+              <LayoutDashboard className="w-4 h-4" />
+              {t.dashboard}
+            </TabsTrigger>
+            <TabsTrigger value="charts" className="gap-2">
+              <BarChart3 className="w-4 h-4" />
+              {t.charts}
+            </TabsTrigger>
+          </TabsList>
           {onRefresh && (
             <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
               <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
@@ -815,19 +825,6 @@ export function SpaarkPaySdkFinanceDashboard({
           )}
         </div>
       </div>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="dashboard" className="gap-2">
-            <LayoutDashboard className="w-4 h-4" />
-            {t.dashboard}
-          </TabsTrigger>
-          <TabsTrigger value="charts" className="gap-2">
-            <BarChart3 className="w-4 h-4" />
-            {t.charts}
-          </TabsTrigger>
-        </TabsList>
 
         {/* Dashboard Tab */}
         <TabsContent value="dashboard" className="space-y-6">
@@ -1169,8 +1166,7 @@ export function SpaarkPaySdkFinanceDashboard({
             </div>
           )}
         </TabsContent>
-      </Tabs>
-    </div>
+    </Tabs>
   );
 }
 
