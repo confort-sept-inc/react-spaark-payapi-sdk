@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.6.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.5.0...v1.6.0) (2026-02-01)
+
+
+### Features
+
+* **dashboard:** integrate @tanstack/react-table with shadcn/ui components ([5dfa145](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/5dfa145d8e89269ec5bf14fe242ec7ab062e0c3d))
+
+
+### Documentation
+
+* update README with shadcn/ui prerequisites and new features ([9283bb1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/9283bb1fcc2b011b295936d17fbc95ba4582b4b1))
+
 ## [1.5.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.4.0...v1.5.0) (2026-02-01)
 
 
