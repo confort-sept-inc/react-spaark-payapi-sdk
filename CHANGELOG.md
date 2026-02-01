@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.7.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.7.0...v1.7.1) (2026-02-01)
+
+
+### Bug Fixes
+
+* **dashboard:** improve header UI and fix charts data display ([187f3ab](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/187f3ab3b25201669107237dd22e72ca3d5023a8))
+
 ## [1.7.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.6.1...v1.7.0) (2026-02-01)
 
 
