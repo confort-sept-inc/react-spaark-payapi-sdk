@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.5.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.4.0...v1.5.0) (2026-02-01)
+
+
+### Features
+
+* **dashboard:** add Charts tab with recharts and shadcn/ui components ([f940172](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/f940172cd3b459e2722269f18a8a2852f06a8c60))
+
 ## [1.4.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.3.1...v1.4.0) (2026-02-01)
 
 
