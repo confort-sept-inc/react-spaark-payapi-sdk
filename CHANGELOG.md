@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.4.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.3.1...v1.4.0) (2026-02-01)
+
+
+### Features
+
+* **dashboard:** redesign Finance Dashboard with 8 KPI cards ([870db0a](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/870db0a88981849f584ed67ceb7b2972d364fbe0))
+
 ### [1.3.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.3.0...v1.3.1) (2026-02-01)
 
 
