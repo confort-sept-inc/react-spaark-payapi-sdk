@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.6.1...v1.7.0) (2026-02-01)
+
+
+### Features
+
+* **dashboard:** add 4 operation modes and migrate to lucide-react icons ([2a555ae](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/2a555aede17c78fd5707ec1264f2cc151f7ab746))
+
 ### [1.6.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.6.0...v1.6.1) (2026-02-01)
 
 

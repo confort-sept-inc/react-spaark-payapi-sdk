@@ -1,6 +1,6 @@
 {
   "name": "spaark-payapi-sdk",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "TypeScript SDK for Pawapay Mobile Money API (V2) - Deposits, Payouts, Refunds for Africa",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
