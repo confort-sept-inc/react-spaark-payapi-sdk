@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.7.2](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.7.1...v1.7.2) (2026-02-01)
+
+
+### Refactoring
+
+* **charts:** migrate to shadcn/ui chart pattern ([f45a8e5](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/f45a8e56f2ca7898f8e0ccbdf60bcfb75052fa51))
+
 ### [1.7.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.7.0...v1.7.1) (2026-02-01)
 
 
