@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.3.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.2.2...v1.3.0) (2026-02-01)
+
+
+### Features
+
+* move clsx, tailwind-merge, class-variance-authority to dependencies ([be015cb](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/be015cb68c3c8220b2c2ad7729c020f3a379a270))
+
 ### [1.2.2](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.2.1...v1.2.2) (2026-02-01)
 
 ### [1.2.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.2.0...v1.2.1) (2026-02-01)
