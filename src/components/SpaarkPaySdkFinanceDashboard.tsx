@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { useState, useMemo, useCallback, forwardRef, useRef, useEffect } from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import * as SelectPrimitive from '@radix-ui/react-select';
@@ -37,21 +38,7 @@ import {
   MoreVertical,
   FlaskConical,
 } from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
+import * as RechartsPrimitive from 'recharts';
 import { cn } from '../lib/utils';
 import type { Correspondent } from '../constants/correspondents';
 
@@ -201,18 +188,178 @@ const STATUS_COLORS: Record<TransactionStatus, string> = {
 };
 
 const CHART_COLORS = {
-  deposit: '#22c55e',
-  payout: '#3b82f6',
-  refund: '#f97316',
-  COMPLETED: '#22c55e',
-  PENDING: '#eab308',
-  PROCESSING: '#3b82f6',
-  ACCEPTED: '#3b82f6',
-  FAILED: '#ef4444',
-  CANCELLED: '#6b7280',
-  REJECTED: '#ef4444',
-  ENQUEUED: '#eab308',
+  deposit: 'hsl(142, 76%, 36%)',  // green-600
+  payout: 'hsl(217, 91%, 60%)',   // blue-500
+  refund: 'hsl(25, 95%, 53%)',    // orange-500
+  COMPLETED: 'hsl(142, 76%, 36%)',
+  PENDING: 'hsl(48, 96%, 53%)',   // yellow-500
+  PROCESSING: 'hsl(217, 91%, 60%)',
+  ACCEPTED: 'hsl(217, 91%, 60%)',
+  FAILED: 'hsl(0, 84%, 60%)',     // red-500
+  CANCELLED: 'hsl(220, 9%, 46%)', // gray-500
+  REJECTED: 'hsl(0, 84%, 60%)',
+  ENQUEUED: 'hsl(48, 96%, 53%)',
 };
+
+// ============================================================================
+// Chart Components (shadcn/ui pattern)
+// ============================================================================
+
+type ChartConfig = Record<string, { label: string; color: string }>;
+
+interface ChartContextValue {
+  config: ChartConfig;
+}
+
+const ChartContext = React.createContext<ChartContextValue | null>(null);
+
+function useChart() {
+  const context = React.useContext(ChartContext);
+  if (!context) {
+    throw new Error('useChart must be used within a ChartContainer');
+  }
+  return context;
+}
+
+interface ChartContainerProps extends React.HTMLAttributes<HTMLDivElement> {
+  config: ChartConfig;
+  children: React.ReactElement;
+}
+
+const ChartContainer = forwardRef<HTMLDivElement, ChartContainerProps>(
+  ({ config, children, className, ...props }, ref) => {
+    const cssVars = Object.entries(config).reduce((acc, [key, value]) => {
+      acc[`--color-${key}`] = value.color;
+      return acc;
+    }, {} as Record<string, string>);
+
+    return (
+      <ChartContext.Provider value={{ config }}>
+        <div
+          ref={ref}
+          className={cn('flex justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line]:stroke-border/50', className)}
+          style={cssVars as React.CSSProperties}
+          {...props}
+        >
+          <RechartsPrimitive.ResponsiveContainer width="100%" height="100%">
+            {children}
+          </RechartsPrimitive.ResponsiveContainer>
+        </div>
+      </ChartContext.Provider>
+    );
+  }
+);
+ChartContainer.displayName = 'ChartContainer';
+
+interface ChartTooltipContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    dataKey: string;
+    color?: string;
+    fill?: string;
+    payload?: Record<string, unknown>;
+  }>;
+  label?: string;
+  labelKey?: string;
+  nameKey?: string;
+  hideLabel?: boolean;
+  hideIndicator?: boolean;
+  indicator?: 'dot' | 'line' | 'dashed';
+  formatter?: (value: number, name: string) => string;
+}
+
+const ChartTooltipContent = forwardRef<HTMLDivElement, ChartTooltipContentProps>(
+  ({ active, payload, label, hideLabel, hideIndicator, indicator = 'dot', formatter, className }, ref) => {
+    const { config } = useChart();
+
+    if (!active || !payload?.length) return null;
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'rounded-lg border bg-background px-3 py-2 shadow-md',
+          className
+        )}
+      >
+        {!hideLabel && label && (
+          <div className="mb-1.5 font-medium">{label}</div>
+        )}
+        <div className="flex flex-col gap-1">
+          {payload.map((item, index) => {
+            const itemConfig = config[item.dataKey] || { label: item.name, color: item.fill || item.color };
+            const displayValue = formatter ? formatter(item.value, item.name) : item.value.toLocaleString();
+
+            return (
+              <div key={index} className="flex items-center gap-2 text-sm">
+                {!hideIndicator && (
+                  <div
+                    className={cn(
+                      'shrink-0',
+                      indicator === 'dot' && 'h-2 w-2 rounded-full',
+                      indicator === 'line' && 'h-0.5 w-4',
+                      indicator === 'dashed' && 'h-0.5 w-4 border-t-2 border-dashed'
+                    )}
+                    style={{ backgroundColor: indicator !== 'dashed' ? (item.fill || item.color || itemConfig.color) : undefined, borderColor: indicator === 'dashed' ? (item.fill || item.color || itemConfig.color) : undefined }}
+                  />
+                )}
+                <span className="text-muted-foreground">{itemConfig.label}</span>
+                <span className="ml-auto font-medium">{displayValue}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+);
+ChartTooltipContent.displayName = 'ChartTooltipContent';
+
+// ChartTooltip is aliased from RechartsPrimitive.Tooltip
+// Use <Tooltip content={<ChartTooltipContent />} /> for shadcn/ui style
+
+interface ChartLegendContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  payload?: Array<{
+    value: string;
+    dataKey?: string;
+    color?: string;
+  }>;
+  nameKey?: string;
+}
+
+const ChartLegendContent = forwardRef<HTMLDivElement, ChartLegendContentProps>(
+  ({ payload, className }, ref) => {
+    const { config } = useChart();
+
+    if (!payload?.length) return null;
+
+    return (
+      <div ref={ref} className={cn('flex flex-wrap items-center justify-center gap-4', className)}>
+        {payload.map((item, index) => {
+          const itemConfig = config[item.dataKey || item.value] || { label: item.value, color: item.color };
+          return (
+            <div key={index} className="flex items-center gap-1.5 text-sm">
+              <div
+                className="h-2 w-2 rounded-full shrink-0"
+                style={{ backgroundColor: item.color || itemConfig.color }}
+              />
+              <span className="text-muted-foreground">{itemConfig.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+);
+ChartLegendContent.displayName = 'ChartLegendContent';
+
+// ChartLegend is aliased from RechartsPrimitive.Legend
+// Use <Legend content={<ChartLegendContent />} /> for shadcn/ui style
+
+// Re-export recharts components for convenience
+const { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } = RechartsPrimitive;
 
 // ============================================================================
 // shadcn/ui-like Components
@@ -1177,78 +1324,109 @@ export function SpaarkPaySdkFinanceDashboard({
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Volume Over Time - Area Chart */}
               <Card className="col-span-1 lg:col-span-2">
                 <CardHeader>
                   <CardTitle>{t.volumeOverTime}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData.volumeData}>
-                        <defs>
-                          <linearGradient id="colorDeposits" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={CHART_COLORS.deposit} stopOpacity={0.3} />
-                            <stop offset="95%" stopColor={CHART_COLORS.deposit} stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="colorPayouts" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={CHART_COLORS.payout} stopOpacity={0.3} />
-                            <stop offset="95%" stopColor={CHART_COLORS.payout} stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="date" className="text-xs" />
-                        <YAxis className="text-xs" />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} />
-                        <Legend />
-                        <Area type="monotone" dataKey="deposits" name={t.deposits} stroke={CHART_COLORS.deposit} fillOpacity={1} fill="url(#colorDeposits)" />
-                        <Area type="monotone" dataKey="payouts" name={t.payouts} stroke={CHART_COLORS.payout} fillOpacity={1} fill="url(#colorPayouts)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ChartContainer
+                    config={{
+                      deposits: { label: t.deposits, color: CHART_COLORS.deposit },
+                      payouts: { label: t.payouts, color: CHART_COLORS.payout },
+                    }}
+                    className="h-[300px] w-full"
+                  >
+                    <AreaChart accessibilityLayer data={chartData.volumeData}>
+                      <defs>
+                        <linearGradient id="colorDeposits" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--color-deposits)" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="var(--color-deposits)" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorPayouts" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--color-payouts)" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="var(--color-payouts)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} />
+                      <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                      <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                      <Tooltip content={<ChartTooltipContent />} />
+                      <Legend content={<ChartLegendContent />} />
+                      <Area type="monotone" dataKey="deposits" stroke="var(--color-deposits)" fillOpacity={1} fill="url(#colorDeposits)" />
+                      <Area type="monotone" dataKey="payouts" stroke="var(--color-payouts)" fillOpacity={1} fill="url(#colorPayouts)" />
+                    </AreaChart>
+                  </ChartContainer>
                 </CardContent>
               </Card>
 
+              {/* Transactions by Type - Bar Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>{t.transactionsByType}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData.typeData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="name" className="text-xs" />
-                        <YAxis className="text-xs" />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} formatter={(value: number) => formatCurrency(value, mainCurrency)} />
-                        <Bar dataKey="value" name={t.amount} radius={[4, 4, 0, 0]}>
-                          {chartData.typeData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ChartContainer
+                    config={{
+                      value: { label: t.amount, color: CHART_COLORS.deposit },
+                      deposit: { label: t.deposit, color: CHART_COLORS.deposit },
+                      payout: { label: t.payout, color: CHART_COLORS.payout },
+                      refund: { label: t.refund, color: CHART_COLORS.refund },
+                    }}
+                    className="h-[300px] w-full"
+                  >
+                    <BarChart accessibilityLayer data={chartData.typeData}>
+                      <CartesianGrid vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
+                      <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                      <Tooltip content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number, mainCurrency)} />} />
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        {chartData.typeData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
                 </CardContent>
               </Card>
 
+              {/* Status Distribution - Pie Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>{t.statusDistribution}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={chartData.statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
-                          {chartData.statusData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ChartContainer
+                    config={{
+                      value: { label: 'Count', color: CHART_COLORS.COMPLETED },
+                      Completed: { label: t.completed, color: CHART_COLORS.COMPLETED },
+                      Pending: { label: t.pending, color: CHART_COLORS.PENDING },
+                      Failed: { label: t.failed, color: CHART_COLORS.FAILED },
+                      Cancelled: { label: t.cancelled, color: CHART_COLORS.CANCELLED },
+                    }}
+                    className="h-[300px] w-full"
+                  >
+                    <PieChart accessibilityLayer>
+                      <Pie
+                        data={chartData.statusData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={2}
+                        dataKey="value"
+                        nameKey="name"
+                        label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {chartData.statusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<ChartTooltipContent nameKey="name" />} />
+                      <Legend content={<ChartLegendContent nameKey="name" />} />
+                    </PieChart>
+                  </ChartContainer>
                 </CardContent>
               </Card>
             </div>
