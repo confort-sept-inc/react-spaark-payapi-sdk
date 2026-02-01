@@ -18,6 +18,20 @@ pnpm add spaark-payapi-sdk
 yarn add spaark-payapi-sdk
 ```
 
+### For React Components
+
+The SDK includes React components that require additional peer dependencies:
+
+```bash
+# Required for React components
+npm install react react-dom lucide-react @radix-ui/react-tabs @radix-ui/react-select @radix-ui/react-dialog
+
+# The following are bundled with the SDK (no need to install):
+# - clsx
+# - tailwind-merge
+# - class-variance-authority
+```
+
 ## Quick Start
 
 ```typescript
@@ -290,11 +304,11 @@ const limits = await sdk.utils.getTransactionLimits('MTN_MOMO_CMR');
 ### Test Dashboard
 
 ```tsx
-import { PawapayTestDashboard } from 'spaark-payapi-sdk/react';
+import { SpaarkPaySdkTestDashboard } from 'spaark-payapi-sdk/react';
 
 export default function TestPage() {
   return (
-    <PawapayTestDashboard
+    <SpaarkPaySdkTestDashboard
       environment="sandbox"
       apiBasePath="/api/pawapay"
       demoMode={false}

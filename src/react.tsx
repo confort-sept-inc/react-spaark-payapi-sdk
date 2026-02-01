@@ -38,7 +38,7 @@ interface WebhookTestEvent {
   isVerified: boolean | null;
 }
 
-export interface PawapayTestDashboardProps {
+export interface SpaarkPaySdkTestDashboardProps {
   apiKey?: string;
   environment?: 'sandbox' | 'production';
   className?: string;
@@ -202,7 +202,7 @@ const CURRENCY_OPTIONS = [
   { value: 'ZMW', label: 'ZMW (Zambian Kwacha)' },
 ];
 
-export function PawapayTestDashboard({
+export function SpaarkPaySdkTestDashboard({
   apiKey: initialApiKey = '',
   environment: initialEnvironment = 'sandbox',
   className = '',
@@ -211,7 +211,7 @@ export function PawapayTestDashboard({
   onDepositComplete,
   onPayoutComplete,
   onError,
-}: PawapayTestDashboardProps) {
+}: SpaarkPaySdkTestDashboardProps) {
   const [apiKey, setApiKey] = useState(initialApiKey);
   const [environment, setEnvironment] = useState<'sandbox' | 'production'>(initialEnvironment);
   const [isConfigured, setIsConfigured] = useState(!!initialApiKey || initialDemoMode);
@@ -1545,4 +1545,4 @@ const CodeIcon = () => (
   </svg>
 );
 
-export default PawapayTestDashboard;
+export default SpaarkPaySdkTestDashboard;

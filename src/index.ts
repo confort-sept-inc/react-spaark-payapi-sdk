@@ -91,6 +91,6 @@ export {
 
 export type { MMOAvailability } from './modules/utils';
 
-// React components (also available via 'pawapay-sdk-wrapper/react' subpath)
-export { PawapayTestDashboard } from './react';
-export type { PawapayTestDashboardProps } from './react';
+// React components (also available via 'spaark-payapi-sdk/react' subpath)
+export { SpaarkPaySdkTestDashboard } from './react';
+export type { SpaarkPaySdkTestDashboardProps } from './react';
