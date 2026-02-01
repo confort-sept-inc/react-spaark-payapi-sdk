@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.0.0](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.7.3...v2.0.0) (2026-02-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **bundle:** SpaarkPaySdkTestDashboard must now be imported from
+'spaark-payapi-sdk/react' instead of 'spaark-payapi-sdk'
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+### Bug Fixes
+
+* **bundle:** separate React components from main entry point ([13750e8](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/13750e88af792d92bc62f27fd9dca2d82976f8be))
+
 ### [1.7.3](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.7.2...v1.7.3) (2026-02-01)
 
 
