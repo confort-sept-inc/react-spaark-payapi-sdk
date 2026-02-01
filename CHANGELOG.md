@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.7.3](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.7.2...v1.7.3) (2026-02-01)
+
+
+### Bug Fixes
+
+* **charts:** use explicit height for ResponsiveContainer ([2724f54](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/2724f54138d9c7b284f8dbbd37a520bed78f349b))
+
 ### [1.7.2](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v1.7.1...v1.7.2) (2026-02-01)
 
 
