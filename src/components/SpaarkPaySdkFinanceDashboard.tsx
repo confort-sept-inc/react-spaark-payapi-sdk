@@ -1427,7 +1427,7 @@ export function SpaarkPaySdkFinanceDashboard({
                         paddingAngle={2}
                         dataKey="value"
                         nameKey="name"
-                        label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                        label={({ percent }) => percent != null ? `${(percent * 100).toFixed(0)}%` : ''}
                         labelLine={false}
                       >
                         {chartData.statusData.map((entry, index) => (

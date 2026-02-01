@@ -91,6 +91,5 @@ export {
 
 export type { MMOAvailability } from './modules/utils';
 
-// React components (also available via 'spaark-payapi-sdk/react' subpath)
-export { SpaarkPaySdkTestDashboard } from './react';
-export type { SpaarkPaySdkTestDashboardProps } from './react';
+// React components are available via 'spaark-payapi-sdk/react' subpath
+// Do NOT re-export them here to avoid bundling React in server-side code
