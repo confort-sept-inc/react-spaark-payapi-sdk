@@ -465,6 +465,7 @@ export class TransactionsModule {
 
   /**
    * Poll until transaction reaches final status
+   * Handles eventual consistency - NOT_FOUND errors during early attempts are treated as pending
    */
   async pollUntilComplete(
     transactionId: string,
@@ -474,20 +475,49 @@ export class TransactionsModule {
       interval = 5000,
       maxAttempts = 12,
       onStatusChange,
+      maxNotFoundAttempts = 5,
     } = options;
 
     let lastStatus: TransactionStatus | undefined;
+    let notFoundCount = 0;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const status = await this.checkStatus(transactionId);
+      try {
+        const status = await this.checkStatus(transactionId);
 
-      if (status.status !== lastStatus) {
-        lastStatus = status.status;
-        onStatusChange?.(status.status);
-      }
+        // Reset NOT_FOUND counter once we find the transaction
+        notFoundCount = 0;
 
-      if (status.status === 'COMPLETED' || status.status === 'FAILED') {
-        return status;
+        if (status.status !== lastStatus) {
+          lastStatus = status.status;
+          onStatusChange?.(status.status);
+        }
+
+        if (status.status === 'COMPLETED' || status.status === 'FAILED') {
+          return status;
+        }
+      } catch (err) {
+        // Handle eventual consistency - transaction may not be immediately available
+        if (err instanceof PawapayError && err.code === 'NOT_FOUND') {
+          notFoundCount++;
+          this.logger.debug(
+            `Transaction ${transactionId} not found yet (attempt ${notFoundCount}/${maxNotFoundAttempts})`
+          );
+
+          // If we've exceeded max NOT_FOUND attempts, throw the error
+          if (notFoundCount >= maxNotFoundAttempts) {
+            throw err;
+          }
+
+          // Notify status change to PENDING if this is the first NOT_FOUND
+          if (notFoundCount === 1 && lastStatus !== 'PENDING') {
+            lastStatus = 'PENDING';
+            onStatusChange?.('PENDING');
+          }
+        } else {
+          // Re-throw non-NOT_FOUND errors
+          throw err;
+        }
       }
 
       if (attempt < maxAttempts) {
@@ -495,6 +525,7 @@ export class TransactionsModule {
       }
     }
 
+    // Final attempt
     const finalStatus = await this.checkStatus(transactionId);
     return finalStatus;
   }

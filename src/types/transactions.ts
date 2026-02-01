@@ -159,9 +159,14 @@ export interface ActionResponse {
 }
 
 export interface PollOptions {
+  /** Polling interval in milliseconds (default: 5000) */
   interval?: number;
+  /** Maximum number of polling attempts (default: 12) */
   maxAttempts?: number;
+  /** Callback when status changes */
   onStatusChange?: (status: TransactionStatus) => void;
+  /** Maximum NOT_FOUND responses before throwing error - handles eventual consistency (default: 5) */
+  maxNotFoundAttempts?: number;
 }
 
 export interface TransactionFilters {
