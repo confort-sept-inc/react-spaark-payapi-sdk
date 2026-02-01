@@ -9,6 +9,14 @@ import {
   WEBHOOK_EVENT_TYPES,
 } from './mocks/webhook-generators';
 
+export {
+  SpaarkPaySdkFinanceDashboard,
+  type SpaarkPaySdkFinanceDashboardProps,
+  type Transaction,
+  type TransactionType,
+  type TransactionStatus,
+} from './components/SpaarkPaySdkFinanceDashboard';
+
 type OperationStatus = 'idle' | 'loading' | 'success' | 'error';
 type TabType = 'deposit' | 'payout' | 'status' | 'toolkit' | 'finances' | 'webhooks';
 
