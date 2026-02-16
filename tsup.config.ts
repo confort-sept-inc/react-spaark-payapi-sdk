@@ -9,5 +9,5 @@ export default defineConfig({
   clean: true,
   minify: true,
   treeshake: true,
-  external: ['axios', 'react', 'react-dom'],
+  external: ['react', 'react-dom'],
 });
