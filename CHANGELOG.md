@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.0.2](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v2.0.1...v2.0.2) (2026-02-16)
+
+
+### Bug Fixes
+
+* **http:** replace axios with native fetch to resolve url.parse() deprecation ([5f94164](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/commit/5f94164834f244f22cb2298e549a7af4c7229340))
+
 ### [2.0.1](https://github.com/confort-sept-inc/react-spaark-payapi-sdk/compare/v2.0.0...v2.0.1) (2026-02-01)
 
 
